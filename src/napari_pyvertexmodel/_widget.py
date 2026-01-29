@@ -30,11 +30,14 @@ Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
 
+import numpy as np
 from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.util import img_as_float
 from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
+from src.pyVertexModel.util.utils import load_state
+from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:
     import napari
@@ -70,6 +73,10 @@ class ImageThreshold(Container):
         super().__init__()
         self._viewer = viewer
         # use create_widget to generate widgets from type annotations
+        self._load_simulation_button = create_widget(
+            label="Load Simulation", annotation=str, widget_type="FileEdit"
+        )
+
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
@@ -86,6 +93,7 @@ class ImageThreshold(Container):
 
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
+        self._load_simulation_button.connect(self._load_simulation)
 
         # append into/extend the container with your widgets
         self.extend(
@@ -96,23 +104,6 @@ class ImageThreshold(Container):
                 self._run_button,
             ]
         )
-
-    def _threshold_im(self):
-        image_layer = self._image_layer_combo.value
-        if image_layer is None:
-            return
-
-        image = img_as_float(image_layer.data)
-        name = image_layer.name + "_thresholded"
-        threshold = self._threshold_slider.value
-        if self._invert_checkbox.value:
-            thresholded = image < threshold
-        else:
-            thresholded = image > threshold
-        if name in self._viewer.layers:
-            self._viewer.layers[name].data = thresholded
-        else:
-            self._viewer.add_labels(thresholded, name=name)
 
     def _run_model(self):
         image_layer = self._image_layer_combo.value
@@ -128,14 +119,63 @@ class ImageThreshold(Container):
             vModel.iterate_over_time()
 
             # Save image to viewer
-            ouput_name = image_layer + "_t_" + str(vModel.tend)
-            if ouput_name in self._viewer.layers:
-                self._viewer.layers[ouput_name].data = thresholded
-            else:
-                self._viewer.add_labels(thresholded, name=ouput_name)
+            self._add_surface_layer(vModel)
         except Exception as e:
             print(f"An error occurred while running the Vertex Model: {e}")
 
+    def _load_simulation(self):
+        file_path = self._load_simulation_button.value
+        if not file_path:
+            return
+        try:
+            # Load the simulation state
+            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
+            load_state(vModel, file_path)
+
+            # Save image to viewer
+            self._add_surface_layer(vModel)
+        except Exception as e:
+            print(f"An error occurred while loading the simulation: {e}")
+
+    def _add_surface_layer(self, vModel):
+        """
+        Add surface layer to napari viewer
+        :param vModel:
+        :return:
+        """
+        layer_name = vModel.model_name
+
+        for cell_id, c_cell in enumerate(vModel.geo.Cells):
+            layer_name_cell = f"{layer_name}_cell_{c_cell.ID}"
+            vtk_poly = c_cell.create_vtk()
+            t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
+            t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
+            t_scalars = vtk_to_numpy(vtk_poly.GetScalars()).astype(np.float32)
+            try:
+                # if the layer exists, update the data
+                curr_verts, curr_faces, curr_values = self.viewer.layers[
+                    layer_name_cell
+                ].data
+
+
+                self.viewer.layers[layer_name_cell].data = (
+                    np.concatenate((curr_verts, t_vertices), axis=0),
+                    np.concatenate((curr_faces, t_faces), axis=0),
+                    np.concatenate((curr_values, t_scalars), axis=0),
+                )
+
+                # Update timepoint that is displayed
+                self.viewer.dims.set_current_step(0, vModel.t)
+
+            except KeyError:
+                # otherwise add it to the viewer
+                self.viewer.add_surface(
+                    (t_vertices, t_faces, t_scalars),
+                    colormap="viridis",
+                    opacity=0.9,
+                    contrast_limits=[0, 1],
+                    name=layer_name,
+                )
 
 
 
