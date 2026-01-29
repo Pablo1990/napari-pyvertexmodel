@@ -35,8 +35,8 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.util import img_as_float
-from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
-from src.pyVertexModel.util.utils import load_state
+from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
+from pyvertexmodel.util.utils import load_state
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:

@@ -24,7 +24,7 @@ contributions:
   readers:
     - command: napari-pyvertexmodel.get_reader
       accepts_directories: false
-      filename_patterns: ['*.npy']
+      filename_patterns: ['*.npy', '*.pkl']
   writers:
     - command: napari-pyvertexmodel.write_multiple
       layer_types: ['image*','labels*']
