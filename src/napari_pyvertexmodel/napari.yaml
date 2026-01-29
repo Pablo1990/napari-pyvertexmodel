@@ -19,17 +19,8 @@ contributions:
       python_name: napari_pyvertexmodel._sample_data:make_sample_data
       title: Load sample data from pyVertexModel
     - id: napari-pyvertexmodel.make_container_widget
-      python_name: napari_pyvertexmodel:ImageThreshold
-      title: Make threshold Container widget
-    - id: napari-pyvertexmodel.make_magic_widget
-      python_name: napari_pyvertexmodel:threshold_magic_widget
-      title: Make threshold magic widget
-    - id: napari-pyvertexmodel.make_function_widget
-      python_name: napari_pyvertexmodel:threshold_autogenerate_widget
-      title: Make threshold function widget
-    - id: napari-pyvertexmodel.make_qwidget
-      python_name: napari_pyvertexmodel:ExampleQWidget
-      title: Make example QWidget
+      python_name: napari_pyvertexmodel:Run3dVertexModel
+      title: Run 3D vertex Model
   readers:
     - command: napari-pyvertexmodel.get_reader
       accepts_directories: false
@@ -47,17 +38,11 @@ contributions:
       key: unique_id.1
   widgets:
     - command: napari-pyvertexmodel.make_container_widget
-      display_name: Container Threshold
-    - command: napari-pyvertexmodel.make_magic_widget
-      display_name: Magic Threshold
-    - command: napari-pyvertexmodel.make_function_widget
-      autogenerate: true
-      display_name: Autogenerate Threshold
-    - command: napari-pyvertexmodel.make_qwidget
-      display_name: Example QWidget
+      display_name: Run 3D Vertex Model
   menus:
     napari/layers/segment:
       - command: napari-pyvertexmodel.make_container_widget
       - command: napari-pyvertexmodel.make_magic_widget
       - command: napari-pyvertexmodel.make_function_widget
       - command: napari-pyvertexmodel.make_qwidget
+

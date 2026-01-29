@@ -35,40 +35,15 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.util import img_as_float
-from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
+from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
 from src.pyVertexModel.util.utils import load_state
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:
     import napari
 
-
-# Uses the `autogenerate: true` flag in the plugin manifest
-# to indicate it should be wrapped as a magicgui to autogenerate
-# a widget.
-def threshold_autogenerate_widget(
-    img: "napari.types.ImageData",
-    threshold: "float",
-) -> "napari.types.LabelsData":
-    return img_as_float(img) > threshold
-
-
-# the magic_factory decorator lets us customize aspects of our widget
-# we specify a widget type for the threshold parameter
-# and use auto_call=True so the function is called whenever
-# the value of a parameter changes
-@magic_factory(
-    threshold={"widget_type": "FloatSlider", "max": 1}, auto_call=True
-)
-def threshold_magic_widget(
-    img_layer: "napari.layers.Image", threshold: "float"
-) -> "napari.types.LabelsData":
-    return img_as_float(img_layer.data) > threshold
-
-
-# if we want even more control over our widget, we can use
 # magicgui `Container`
-class ImageThreshold(Container):
+class Run3dVertexModel(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
         self._viewer = viewer
@@ -76,7 +51,6 @@ class ImageThreshold(Container):
         self._load_simulation_button = create_widget(
             label="Load Simulation", annotation=str, widget_type="FileEdit"
         )
-
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
@@ -102,6 +76,7 @@ class ImageThreshold(Container):
                 self._threshold_slider,
                 self._invert_checkbox,
                 self._run_button,
+                self._load_simulation_button,
             ]
         )
 
@@ -157,7 +132,6 @@ class ImageThreshold(Container):
                     layer_name_cell
                 ].data
 
-
                 self.viewer.layers[layer_name_cell].data = (
                     np.concatenate((curr_verts, t_vertices), axis=0),
                     np.concatenate((curr_faces, t_faces), axis=0),
@@ -177,20 +151,3 @@ class ImageThreshold(Container):
                     name=layer_name,
                 )
 
-
-
-class ExampleQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # use a type annotation of 'napari.viewer.Viewer' for any parameter
-    def __init__(self, viewer: "napari.viewer.Viewer"):
-        super().__init__()
-        self.viewer = viewer
-
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
-
-        self.setLayout(QHBoxLayout())
-        self.layout().addWidget(btn)
-
-    def _on_click(self):
-        print("napari has", len(self.viewer.layers), "layers")
