@@ -5,7 +5,6 @@ both .npy and .pkl files.
 It implements the Reader specification for napari.
 https://napari.org/stable/plugins/building_a_plugin/guides.html#readers
 """
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -44,7 +43,7 @@ def napari_get_reader(path):
         except OSError:
             return None
         return npy_reader_function
-    
+
     return None
 
 
@@ -62,32 +61,34 @@ def pkl_reader_function(path):
         A list of LayerData tuples where each tuple contains
         (data, metadata, layer_type).
     """
-    from pyvertexmodel.util.utils import load_state
-    from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
-    
+    from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+        VertexModelVoronoiFromTimeImage,
+    )
+    from src.pyVertexModel.util.utils import load_state
+
     # Handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
-    
+
     layer_data_list = []
-    
+
     for file_path in paths:
         # Load the vertex model state from pickle file
         vModel = VertexModelVoronoiFromTimeImage(
-            create_output_folder=False, 
+            create_output_folder=False,
             set_option='wing_disc_equilibrium'
         )
         load_state(vModel, file_path)
-        
+
         # Convert the vertex model to surface layer data
         from vtkmodules.util.numpy_support import vtk_to_numpy
-        
-        for cell_id, c_cell in enumerate(vModel.geo.Cells):
+
+        for _cell_id, c_cell in enumerate(vModel.geo.Cells):
             layer_name_cell = f"{vModel.model_name}_cell_{c_cell.ID}"
             vtk_poly = c_cell.create_vtk()
             t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
             t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
             t_scalars = vtk_to_numpy(vtk_poly.GetScalars()).astype(np.float32)
-            
+
             # Create surface layer data
             surface_data = (t_vertices, t_faces, t_scalars)
             add_kwargs = {
@@ -97,9 +98,9 @@ def pkl_reader_function(path):
                 'contrast_limits': [0, 1]
             }
             layer_type = "surface"
-            
+
             layer_data_list.append((surface_data, add_kwargs, layer_type))
-    
+
     return layer_data_list
 
 

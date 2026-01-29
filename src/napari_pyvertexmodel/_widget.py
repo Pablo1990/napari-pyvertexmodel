@@ -31,12 +31,12 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
-from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
-from skimage.util import img_as_float
-from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
-from pyvertexmodel.util.utils import load_state
+from qtpy.QtWidgets import QPushButton
+from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+    VertexModelVoronoiFromTimeImage,
+)
+from src.pyVertexModel.util.utils import load_state
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:
@@ -95,7 +95,7 @@ class Run3dVertexModel(Container):
 
             # Save image to viewer
             self._add_surface_layer(vModel)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
 
     def _load_simulation(self):
@@ -109,7 +109,7 @@ class Run3dVertexModel(Container):
 
             # Save image to viewer
             self._add_surface_layer(vModel)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the simulation: {e}")
 
     def _add_surface_layer(self, vModel):
@@ -120,7 +120,7 @@ class Run3dVertexModel(Container):
         """
         layer_name = vModel.model_name
 
-        for cell_id, c_cell in enumerate(vModel.geo.Cells):
+        for _cell_id, c_cell in enumerate(vModel.geo.Cells):
             layer_name_cell = f"{layer_name}_cell_{c_cell.ID}"
             vtk_poly = c_cell.create_vtk()
             t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
