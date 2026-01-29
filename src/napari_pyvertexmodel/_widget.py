@@ -42,6 +42,9 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 if TYPE_CHECKING:
     import napari
 
+# Default simulation option for pyVertexModel
+DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
+
 # magicgui `Container`
 class Run3dVertexModel(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
@@ -86,7 +89,10 @@ class Run3dVertexModel(Container):
             return
         try:
             # Create Vertex Model
-            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
+            vModel = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            )
 
             # Initialize model
             vModel.initialize()
@@ -104,7 +110,10 @@ class Run3dVertexModel(Container):
             return
         try:
             # Load the simulation state
-            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
+            vModel = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            )
             load_state(vModel, file_path)
 
             # Save image to viewer
