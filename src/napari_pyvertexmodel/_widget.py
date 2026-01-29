@@ -34,6 +34,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.util import img_as_float
+from pyvertexmodel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
 
 if TYPE_CHECKING:
     import napari
@@ -70,7 +71,7 @@ class ImageThreshold(Container):
         self._viewer = viewer
         # use create_widget to generate widgets from type annotations
         self._image_layer_combo = create_widget(
-            label="Image", annotation="napari.layers.Image"
+            label="Input Labels", annotation="napari.layers.Labels"
         )
         self._threshold_slider = create_widget(
             label="Threshold", annotation=float, widget_type="FloatSlider"
@@ -80,9 +81,11 @@ class ImageThreshold(Container):
         # use magicgui widgets directly
         self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
 
+        # Add button to run Vertex Model
+        self._run_button = QPushButton("Run it!")
+
         # connect your own callbacks
-        self._threshold_slider.changed.connect(self._threshold_im)
-        self._invert_checkbox.changed.connect(self._threshold_im)
+        self._run_button.clicked.connect(self._run_model)
 
         # append into/extend the container with your widgets
         self.extend(
@@ -90,6 +93,7 @@ class ImageThreshold(Container):
                 self._image_layer_combo,
                 self._threshold_slider,
                 self._invert_checkbox,
+                self._run_button,
             ]
         )
 
@@ -109,6 +113,30 @@ class ImageThreshold(Container):
             self._viewer.layers[name].data = thresholded
         else:
             self._viewer.add_labels(thresholded, name=name)
+
+    def _run_model(self):
+        image_layer = self._image_layer_combo.value
+        if image_layer is None:
+            return
+        try:
+            # Create Vertex Model
+            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
+
+            # Initialize model
+            vModel.initialize()
+            # Run the simulation
+            vModel.iterate_over_time()
+
+            # Save image to viewer
+            ouput_name = image_layer + "_t_" + str(vModel.tend)
+            if ouput_name in self._viewer.layers:
+                self._viewer.layers[ouput_name].data = thresholded
+            else:
+                self._viewer.add_labels(thresholded, name=ouput_name)
+        except Exception as e:
+            print(f"An error occurred while running the Vertex Model: {e}")
+
+
 
 
 class ExampleQWidget(QWidget):
