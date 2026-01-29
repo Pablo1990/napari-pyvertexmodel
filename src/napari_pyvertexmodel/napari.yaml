@@ -1,0 +1,63 @@
+name: napari-pyvertexmodel
+display_name: pyVertexModel
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
+# categories: []
+contributions:
+  commands:
+    - id: napari-pyvertexmodel.get_reader
+      python_name: napari_pyvertexmodel._reader:napari_get_reader
+      title: Open data with pyVertexModel
+    - id: napari-pyvertexmodel.write_multiple
+      python_name: napari_pyvertexmodel._writer:write_multiple
+      title: Save multi-layer data with pyVertexModel
+    - id: napari-pyvertexmodel.write_single_image
+      python_name: napari_pyvertexmodel._writer:write_single_image
+      title: Save image data with pyVertexModel
+    - id: napari-pyvertexmodel.make_sample_data
+      python_name: napari_pyvertexmodel._sample_data:make_sample_data
+      title: Load sample data from pyVertexModel
+    - id: napari-pyvertexmodel.make_container_widget
+      python_name: napari_pyvertexmodel:ImageThreshold
+      title: Make threshold Container widget
+    - id: napari-pyvertexmodel.make_magic_widget
+      python_name: napari_pyvertexmodel:threshold_magic_widget
+      title: Make threshold magic widget
+    - id: napari-pyvertexmodel.make_function_widget
+      python_name: napari_pyvertexmodel:threshold_autogenerate_widget
+      title: Make threshold function widget
+    - id: napari-pyvertexmodel.make_qwidget
+      python_name: napari_pyvertexmodel:ExampleQWidget
+      title: Make example QWidget
+  readers:
+    - command: napari-pyvertexmodel.get_reader
+      accepts_directories: false
+      filename_patterns: ['*.npy']
+  writers:
+    - command: napari-pyvertexmodel.write_multiple
+      layer_types: ['image*','labels*']
+      filename_extensions: []
+    - command: napari-pyvertexmodel.write_single_image
+      layer_types: ['image']
+      filename_extensions: ['.npy']
+  sample_data:
+    - command: napari-pyvertexmodel.make_sample_data
+      display_name: pyVertexModel
+      key: unique_id.1
+  widgets:
+    - command: napari-pyvertexmodel.make_container_widget
+      display_name: Container Threshold
+    - command: napari-pyvertexmodel.make_magic_widget
+      display_name: Magic Threshold
+    - command: napari-pyvertexmodel.make_function_widget
+      autogenerate: true
+      display_name: Autogenerate Threshold
+    - command: napari-pyvertexmodel.make_qwidget
+      display_name: Example QWidget
+  menus:
+    napari/layers/segment:
+      - command: napari-pyvertexmodel.make_container_widget
+      - command: napari-pyvertexmodel.make_magic_widget
+      - command: napari-pyvertexmodel.make_function_widget
+      - command: napari-pyvertexmodel.make_qwidget
