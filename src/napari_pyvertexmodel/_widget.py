@@ -28,6 +28,7 @@ References:
 
 Replace code below according to your needs.
 """
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
@@ -48,24 +49,28 @@ class Run3dVertexModel(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
         self._viewer = viewer
-        # use create_widget to generate widgets from type annotations
+        self._viewer.dims.ndisplay = 3  # Set viewer to 3D display
+
+        # Load simulation input
         self._load_simulation_input = create_widget(
             label="Load Simulation", annotation=str, widget_type="FileEdit"
         )
         self._load_simulation_button = PushButton(text="Load")
 
+        # Image layer selection
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
         self._image_layer_load_button = PushButton(text="Load Labels")
 
-        self._threshold_slider = create_widget(
-            label="Threshold", annotation=float, widget_type="FloatSlider"
+        # Sliders with mechanical parameters
+        self._lambda_volume_slider = create_widget(
+            label=r'$\lambda_V$',
+            annotation=float,
+            widget_type="FloatSlider"
         )
-        self._threshold_slider.min = 0
-        self._threshold_slider.max = 1
-        # use magicgui widgets directly
-        self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
+        self._lambda_volume_slider.min = 0
+        self._lambda_volume_slider.max = 100
 
         # Add button to run Vertex Model
         self._run_button = PushButton(text="Run it!")
@@ -82,7 +87,7 @@ class Run3dVertexModel(Container):
                 self._load_simulation_button,
                 self._image_layer_combo,
                 self._image_layer_load_button,
-                self._threshold_slider,
+                self._lambda_volume_slider,
                 self._invert_checkbox,
                 self._run_button,
             ]
@@ -96,6 +101,8 @@ class Run3dVertexModel(Container):
             pkl_file = self._load_simulation_input.value
             if pkl_file is None:
                 return
+
+            pkl_file = str(Path(pkl_file))
 
             if not pkl_file.endswith('.pkl'):
                 print("Please select a valid .pkl file.")
@@ -111,7 +118,7 @@ class Run3dVertexModel(Container):
 
             print("Simulation loaded successfully.")
             # Save image to viewer
-            _add_surface_layer(self.viewer, self.v_model)
+            _add_surface_layer(self._viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the simulation: {e}")
 
@@ -132,7 +139,7 @@ class Run3dVertexModel(Container):
             self.v_model.initialize()
 
             # Save image to viewer
-            _add_surface_layer(self.viewer, self.v_model)
+            _add_surface_layer(self._viewer, self.v_model)
 
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the image layer: {e}")
@@ -144,7 +151,7 @@ class Run3dVertexModel(Container):
             self.v_model.iterate_over_time()
 
             # Save image to viewer
-            _add_surface_layer(self.viewer, self.v_model)
+            _add_surface_layer(self._viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
 
