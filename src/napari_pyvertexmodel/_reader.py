@@ -105,7 +105,7 @@ def pkl_reader_function(path):
                     'name': f'{v_model.set.model_name}_all_cells',
                     'colormap': 'plasma',
                     'opacity': 0.9,
-                    'contrast_limits': [0, 1]
+                    'contrast_limits': [0.0001, 0.0006],
                 }
                 layer_type = "surface"
 

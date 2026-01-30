@@ -47,7 +47,7 @@ def _add_surface_layer(viewer, v_model):
                 (merged_vertices, merged_faces, merged_scalars),
                 colormap="plasma",
                 opacity=0.9,
-                contrast_limits=[0, 1],
+                contrast_limits=[0.0001, 0.0006],
                 name=layer_name,
             )
 
@@ -95,11 +95,8 @@ def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, A
             padding = np.zeros(t_vertices.shape[0] - len(t_scalars))
             t_scalars = np.concatenate((t_scalars, padding))
 
-    print(t_scalars)
-
     # Adjust face indices with offset integer
     t_faces += offset_indices
-    print(t_faces)
 
     # Return the layer name and the surface data
     return layer_name_cell, t_faces, t_scalars, t_vertices
