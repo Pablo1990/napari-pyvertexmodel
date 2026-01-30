@@ -90,28 +90,17 @@ def pkl_reader_function(path):
             load_state(v_model, file_path)
 
             # Batch all cells into a single layer for better performance
-            # Instead of creating 150+ separate layers, merge all cells
             all_vertices = []
             all_faces = []
             all_scalars = []
-            vertex_offset = 0
 
             for _cell_id, c_cell in enumerate(v_model.geo.Cells):
                 if c_cell.AliveStatus is not None:
                     _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
 
-                    # Append vertices directly
                     all_vertices.append(t_vertices)
-
-                    # Offset face indices to account for previously added vertices
-                    offset_faces = t_faces + vertex_offset
-                    all_faces.append(offset_faces)
-
-                    # Append scalars directly
+                    all_faces.append(t_faces)
                     all_scalars.append(t_scalars)
-
-                    # Update offset for next cell
-                    vertex_offset += len(t_vertices)
 
             # Only create layer if we have data
             if all_vertices:
