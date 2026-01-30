@@ -35,7 +35,7 @@ def _add_surface_layer(viewer, v_model):
                 # otherwise add it to the viewer
                 viewer.add_surface(
                     (t_vertices, t_faces, t_scalars),
-                    colormap="viridis",
+                    colormap="pink",
                     opacity=0.9,
                     contrast_limits=[0, 1],
                     name=layer_name_cell,
