@@ -31,7 +31,7 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from magicgui.widgets import CheckBox, Container, create_widget
+from magicgui.widgets import CheckBox, Container, create_widget, PushButton
 from qtpy.QtWidgets import QPushButton
 from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
@@ -66,7 +66,7 @@ class Run3dVertexModel(Container):
         self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
 
         # Add button to run Vertex Model
-        self._run_button = QPushButton("Run it!")
+        self._run_button = PushButton(text="Run it!")
 
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
