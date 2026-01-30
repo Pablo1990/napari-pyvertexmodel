@@ -247,6 +247,14 @@ class Run3dVertexModel(Container):
         # Extended attributes
         self.v_model = None
         self._temp_dir = None  # Store temp directory reference for cleanup
+    
+    def __del__(self):
+        """Cleanup temporary directory on widget destruction."""
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception:  # noqa: BLE001
+                pass  # Silently ignore cleanup errors during destruction
 
     def _load_simulation(self):
         try:
@@ -356,8 +364,8 @@ class Run3dVertexModel(Container):
         if self._temp_dir is not None:
             try:
                 self._temp_dir.cleanup()
-            except Exception:  # noqa: BLE001
-                pass  # Ignore errors during cleanup
+            except Exception as e:  # noqa: BLE001
+                print(f"Warning: Failed to cleanup previous temp directory: {e}")
         
         # Create new temp directory and store reference
         self._temp_dir = tempfile.TemporaryDirectory()
