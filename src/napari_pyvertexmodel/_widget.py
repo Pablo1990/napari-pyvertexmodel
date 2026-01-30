@@ -246,6 +246,15 @@ class Run3dVertexModel(Container):
 
         # Extended attributes
         self.v_model = None
+        self._temp_dir = None  # Store temp directory reference for cleanup
+    
+    def __del__(self):
+        """Cleanup temporary directory on widget destruction."""
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception:  # noqa: BLE001
+                pass  # Silently ignore cleanup errors during destruction
 
     def _load_simulation(self):
         try:
@@ -284,7 +293,7 @@ class Run3dVertexModel(Container):
         self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
         self._lambda_surface_bottom_slider.value = self.v_model.set.lambdaS3
         self._lambda_surface_lateral_slider.value = self.v_model.set.lambdaS2
-        self._volume_reference_slider.value = self.v_model.set.ref_A0
+        self._volume_reference_slider.value = self.v_model.set.ref_V0
         self._surface_area_reference_slider.value = self.v_model.set.ref_A0
         self._k_substrate_slider.value = self.v_model.set.kSubstrate
         self._t_end_slider.value = self.v_model.set.tend
@@ -302,6 +311,7 @@ class Run3dVertexModel(Container):
         self.v_model.set.lambdaS1 = self._lambda_surface_top_slider.value
         self.v_model.set.lambdaS3 = self._lambda_surface_bottom_slider.value
         self.v_model.set.lambdaS2 = self._lambda_surface_lateral_slider.value
+        self.v_model.set.ref_V0 = self._volume_reference_slider.value
         self.v_model.set.ref_A0 = self._surface_area_reference_slider.value
         self.v_model.set.kSubstrate = self._k_substrate_slider.value
         self.v_model.set.tend = self._t_end_slider.value
@@ -318,15 +328,29 @@ class Run3dVertexModel(Container):
             # Load the image layer from the viewer
             image_layer = self._image_layer_combo.value
             if image_layer is None:
+                print("Error: No labels layer selected.")
                 return
 
-            # Create Vertex Model
+            # Get the label data from the selected layer
+            label_data = image_layer.data
+            
+            # TODO: Implement proper initialization from label data
+            # Currently, VertexModelVoronoiFromTimeImage initialization from
+            # label images is not fully implemented. The model needs to be
+            # configured to accept and process the label_data array.
+            print(f"Label data shape: {label_data.shape}, dtype: {label_data.dtype}")
+            print("Warning: Loading from labels is not yet fully implemented.")
+            print("The model will be initialized with default parameters instead.")
+
+            # Create Vertex Model with default parameters
+            # Note: This should be updated to use label_data once the
+            # VertexModelVoronoiFromTimeImage class supports it
             self.v_model = VertexModelVoronoiFromTimeImage(
                 create_output_folder=False,
                 set_option=DEFAULT_VERTEX_MODEL_OPTION
             )
 
-            # Initialize model
+            # Initialize model (currently uses default Voronoi tessellation)
             self.v_model.initialize()
 
             # Save image to viewer
@@ -336,11 +360,23 @@ class Run3dVertexModel(Container):
             print(f"An error occurred while loading the image layer: {e}")
 
     def _create_temp_folder(self):
-        temp_dir = tempfile.TemporaryDirectory()
-        self.v_model.set.OutputFolder = temp_dir.name
+        # Clean up previous temp directory if it exists
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception as e:  # noqa: BLE001
+                print(f"Warning: Failed to cleanup previous temp directory: {e}")
+        
+        # Create new temp directory and store reference
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.v_model.set.OutputFolder = self._temp_dir.name
         self.v_model.set.redirect_output()
 
     def _run_model(self):
+        if self.v_model is None:
+            print("Error: No model loaded. Please load a simulation or labels first.")
+            return
+        
         self.v_model.t = 0  # Reset time
 
         # Update model parameters from sliders
