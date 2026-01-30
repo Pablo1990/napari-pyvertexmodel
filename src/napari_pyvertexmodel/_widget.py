@@ -31,12 +31,10 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from magicgui.widgets import CheckBox, Container, create_widget, PushButton
-from qtpy.QtWidgets import QPushButton
+from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
-from src.pyVertexModel.util.utils import load_state
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:

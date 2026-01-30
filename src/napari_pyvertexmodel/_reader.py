@@ -82,15 +82,15 @@ def pkl_reader_function(path):
     for file_path in paths:
         try:
             # Load the vertex model state from pickle file
-            vModel = VertexModelVoronoiFromTimeImage(
+            v_model = VertexModelVoronoiFromTimeImage(
                 create_output_folder=False,
                 set_option=DEFAULT_VERTEX_MODEL_OPTION
             )
-            load_state(vModel, file_path)
+            load_state(v_model, file_path)
 
             # Convert the vertex model to surface layer data
-            for _cell_id, c_cell in enumerate(vModel.geo.Cells):
-                layer_name_cell = f"{vModel.model_name}_cell_{c_cell.ID}"
+            for _cell_id, c_cell in enumerate(v_model.geo.Cells):
+                layer_name_cell = f"{v_model.model_name}_cell_{c_cell.ID}"
                 vtk_poly = c_cell.create_vtk()
                 t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
                 t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
