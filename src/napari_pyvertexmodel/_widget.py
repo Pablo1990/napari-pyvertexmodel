@@ -28,6 +28,7 @@ References:
 
 Replace code below according to your needs.
 """
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,26 +52,166 @@ class Run3dVertexModel(Container):
         self._viewer = viewer
         self._viewer.dims.ndisplay = 3  # Set viewer to 3D display
 
-        # Load simulation input
-        self._load_simulation_input = create_widget(
-            label="Load Simulation", annotation=str, widget_type="FileEdit"
-        )
-        self._load_simulation_button = PushButton(text="Load")
-
         # Image layer selection
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
+        # Add tissue height
+        self._tissue_height_slider = create_widget(
+            label="Tissue Height", annotation=float, widget_type="FloatSlider"
+        )
+        self._tissue_height_widget.min = 0.01
+        self._tissue_height_widget.max = 100.0
+        self._tissue_height_widget.step = 0.01
+        self._tissue_height_widget.value = 50
+
+        # Button to load image layer
         self._image_layer_load_button = PushButton(text="Load Labels")
 
-        # Sliders with mechanical parameters
+        # ----- Sliders with mechanical parameters -----
+        # Lambda Volume slider
         self._lambda_volume_slider = create_widget(
             label=r'$\lambda_V$',
             annotation=float,
             widget_type="FloatSlider"
         )
         self._lambda_volume_slider.min = 0
-        self._lambda_volume_slider.max = 100
+        self._lambda_volume_slider.max = 10
+        self._lambda_volume_slider.step = 0.01
+        self._lambda_volume_slider.value = 1.0
+
+        # Volume reference slider
+        self._volume_reference_slider = create_widget(
+            label=r'$V_{0}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._volume_reference_slider.min = 0
+        self._volume_reference_slider.max = 10
+        self._volume_reference_slider.step = 0.01
+        self._volume_reference_slider.value = 1.0
+
+        # Lambda Surface top slider
+        self._lambda_surface_top_slider = create_widget(
+            label=r'$\lambda_{S1}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_top_slider.min = 0
+        self._lambda_surface_top_slider.max = 10
+        self._lambda_surface_top_slider.step = 0.01
+        self._lambda_surface_top_slider.value = 0.5
+
+        # Lambda Surface bottom slider
+        self._lambda_surface_bottom_slider = create_widget(
+            label=r'$\lambda_{S3}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_bottom_slider.min = 0
+        self._lambda_surface_bottom_slider.max = 10
+        self._lambda_surface_bottom_slider.step = 0.01
+        self._lambda_surface_bottom_slider.value = 0.5
+
+        # Lambda Surface lateral slider
+        self._lambda_surface_lateral_slider = create_widget(
+            label=r'$\lambda_{S2}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_lateral_slider.min = 0
+        self._lambda_surface_lateral_slider.max = 10
+        self._lambda_surface_lateral_slider.step = 0.01
+        self._lambda_surface_lateral_slider.value = 0.1
+
+        # Surface Area reference slider
+        self._surface_area_reference_slider = create_widget(
+            label=r'$A_{0}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._surface_area_reference_slider.min = 0
+        self._surface_area_reference_slider.max = 10
+        self._surface_area_reference_slider.step = 0.01
+        self._surface_area_reference_slider.value = 0.92
+
+        # K substrate slider
+        self._k_substrate_slider = create_widget(
+            label=r'$k_{Substrate}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._k_substrate_slider.min = 0
+        self._k_substrate_slider.max = 1
+        self._k_substrate_slider.step = 0.001
+        self._k_substrate_slider.value = 0.1
+
+        # T end slider
+        self._t_end_slider = create_widget(
+            label=r'$t_{end}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._t_end_slider.min = 0
+        self._t_end_slider.max = 30
+        self._t_end_slider.step = 0.1
+        self._t_end_slider.value = 1
+
+        # --- Advanced mechanical parameters hidden by default ---
+        # Checkbox to show/hide advanced parameters
+        self._show_advanced_params_checkbox = CheckBox(
+            text="Show Advanced Parameters", value=False
+        )
+
+        # Energy Barrier (Lambda R) slider
+        self._lambda_r_slider = create_widget(
+            label=r'$\lambda_{R}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_r_slider.min = 0
+        self._lambda_r_slider.max = 1e-4
+        self._lambda_r_slider.step = 1e-8
+        self._lambda_r_slider.value = 8e-7
+
+        # Viscosity slider
+        self._viscosity_slider = create_widget(
+            label=r'$\nu$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._viscosity_slider.min = 0
+        self._viscosity_slider.max = 1
+        self._viscosity_slider.step = 0.001
+        self._viscosity_slider.value = 0.07
+
+        # Remodelling checkbox
+        self._remodelling_checkbox = CheckBox(
+            text="Enable Remodelling", value=False
+        )
+
+        # Ablation checkbox
+        self._ablation_checkbox = CheckBox(
+            text="Enable Ablation", value=False
+        )
+
+        # Cells to ablate slider
+        self._cells_to_ablate_slider = create_widget(
+            label=r'Cells to Ablate',
+            annotation=int,
+            widget_type="IntSlider"
+        )
+        self._cells_to_ablate_slider.min = 0
+        self._cells_to_ablate_slider.max = 10
+        self._cells_to_ablate_slider.step = 1
+        self._cells_to_ablate_slider.value = 0
+
+        # -----------------------------------------------
+        # Load simulation input
+        self._load_simulation_input = create_widget(
+            label="Load Simulation", annotation=str, widget_type="FileEdit"
+        )
+        self._load_simulation_button = PushButton(text="Load")
 
         # Add button to run Vertex Model
         self._run_button = PushButton(text="Run it!")
@@ -79,16 +220,25 @@ class Run3dVertexModel(Container):
         self._run_button.clicked.connect(self._run_model)
         self._load_simulation_button.clicked.connect(self._load_simulation)
         self._image_layer_load_button.clicked.connect(self._image_layer_load)
+        self._show_advanced_params_checkbox.clicked.connect(self._display_advanced_params)
 
         # append into/extend the container with your widgets
         self.extend(
             [
-                self._load_simulation_input,
-                self._load_simulation_button,
                 self._image_layer_combo,
+                self._tissue_height_slider,
                 self._image_layer_load_button,
                 self._lambda_volume_slider,
-                self._invert_checkbox,
+                self._volume_reference_slider,
+                self._lambda_surface_top_slider,
+                self._lambda_surface_bottom_slider,
+                self._lambda_surface_lateral_slider,
+                self._surface_area_reference_slider,
+                self._k_substrate_slider,
+                self._t_end_slider,
+                self._show_advanced_params_checkbox,
+                self._load_simulation_input,
+                self._load_simulation_button,
                 self._run_button,
             ]
         )
@@ -115,6 +265,27 @@ class Run3dVertexModel(Container):
             )
             from src.pyVertexModel.util.utils import load_state
             load_state(self.v_model, pkl_file)
+
+            self.v_model.set.OutputFolder = None  # Disable output folder
+            self.v_model.set.redirect_output()
+
+            # Update sliders with loaded model parameters
+            self._tissue_height_slider.value = self.v_model.set.CellHeight
+            self._lambda_volume_slider.value = self.v_model.set.lambdaV
+            self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
+            self._lambda_surface_bottom_slider.value = self.v_model.set.lambdaS3
+            self._lambda_surface_lateral_slider.value = self.v_model.set.lambdaS2
+            self._volume_reference_slider.value = self.v_model.set.ref_A0
+            self._surface_area_reference_slider.value = self.v_model.set.ref_A0
+            self._k_substrate_slider.value = self.v_model.set.kSubstrate
+            self._t_end_slider.value = self.v_model.set.tend
+
+            if self._show_advanced_params_checkbox.value:
+                self._lambda_r_slider.value = self.v_model.set.lambdaR
+                self._viscosity_slider.value = self.v_model.set.nu
+                self._remodelling_checkbox.value = self.v_model.set.RemodelCells
+                self._ablation_checkbox.value = self.v_model.set.AblateCells
+                self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
 
             print("Simulation loaded successfully.")
             # Save image to viewer
@@ -144,6 +315,10 @@ class Run3dVertexModel(Container):
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the image layer: {e}")
 
+    def _create_temp_folder(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.v_model.set.OutputFolder = temp_dir.name
+        self.v_model.set.redirect_output()
 
     def _run_model(self):
         try:
@@ -154,6 +329,30 @@ class Run3dVertexModel(Container):
             _add_surface_layer(self._viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
+
+    def _display_advanced_params(self):
+        if self._show_advanced_params_checkbox.value:
+            # Show advanced parameters
+            for widget in [
+                self._lambda_r_slider,
+                self._viscosity_slider,
+                self._remodelling_checkbox,
+                self._ablation_checkbox,
+                self._cells_to_ablate_slider,
+            ]:
+                if widget not in self:
+                    self.append(widget)
+        else:
+            # Hide advanced parameters
+            for widget in [
+                self._lambda_r_slider,
+                self._viscosity_slider,
+                self._remodelling_checkbox,
+                self._ablation_checkbox,
+                self._cells_to_ablate_slider,
+            ]:
+                if widget in self:
+                    self.remove(widget)
 
 
 
