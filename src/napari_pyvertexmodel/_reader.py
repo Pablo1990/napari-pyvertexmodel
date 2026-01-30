@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from napari_pyvertexmodel.utils import _create_surface_data
+from napari_pyvertexmodel.utils import _get_mesh
 
 # Default simulation option for pyVertexModel
 DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
@@ -90,17 +90,7 @@ def pkl_reader_function(path):
             load_state(v_model, file_path)
 
             # Batch all cells into a single layer for better performance
-            all_vertices = []
-            all_faces = []
-            all_scalars = []
-
-            for _cell_id, c_cell in enumerate(v_model.geo.Cells):
-                if c_cell.AliveStatus is not None:
-                    _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
-
-                    all_vertices.append(t_vertices)
-                    all_faces.append(t_faces)
-                    all_scalars.append(t_scalars)
+            all_faces, all_scalars, all_vertices = _get_mesh(v_model)
 
             # Only create layer if we have data
             if all_vertices:

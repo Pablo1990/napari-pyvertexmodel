@@ -49,12 +49,16 @@ class Run3dVertexModel(Container):
         super().__init__()
         self._viewer = viewer
         # use create_widget to generate widgets from type annotations
-        self._load_simulation_button = create_widget(
+        self._load_simulation_input = create_widget(
             label="Load Simulation", annotation=str, widget_type="FileEdit"
         )
+        self._load_simulation_button = PushButton(text="Load")
+
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
+        self._image_layer_load_button = PushButton(text="Load Labels")
+
         self._threshold_slider = create_widget(
             label="Threshold", annotation=float, widget_type="FloatSlider"
         )
@@ -68,38 +72,82 @@ class Run3dVertexModel(Container):
 
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
+        self._load_simulation_button.clicked.connect(self._load_simulation)
+        self._image_layer_load_button.clicked.connect(self._image_layer_load)
 
         # append into/extend the container with your widgets
         self.extend(
             [
+                self._load_simulation_input,
+                self._load_simulation_button,
                 self._image_layer_combo,
+                self._image_layer_load_button,
                 self._threshold_slider,
                 self._invert_checkbox,
                 self._run_button,
-                self._load_simulation_button,
             ]
         )
 
-    def _run_model(self):
-        image_layer = self._image_layer_combo.value
-        if image_layer is None:
-            return
+        # Extended attributes
+        self.v_model = None
+
+    def _load_simulation(self):
         try:
+            pkl_file = self._load_simulation_input.value
+            if pkl_file is None:
+                return
+
+            if not pkl_file.endswith('.pkl'):
+                print("Please select a valid .pkl file.")
+                return
+
+            # Load the Vertex Model from the specified file
+            self.v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION,
+            )
+            from src.pyVertexModel.util.utils import load_state
+            load_state(self.v_model, pkl_file)
+
+            print("Simulation loaded successfully.")
+            # Save image to viewer
+            _add_surface_layer(self.viewer, self.v_model)
+        except Exception as e:  # noqa: BLE001
+            print(f"An error occurred while loading the simulation: {e}")
+
+    def _image_layer_load(self):
+        try:
+            # Load the image layer from the viewer
+            image_layer = self._image_layer_combo.value
+            if image_layer is None:
+                return
+
             # Create Vertex Model
-            v_model = VertexModelVoronoiFromTimeImage(
+            self.v_model = VertexModelVoronoiFromTimeImage(
                 create_output_folder=False,
                 set_option=DEFAULT_VERTEX_MODEL_OPTION
             )
 
             # Initialize model
-            v_model.initialize()
-            # Run the simulation
-            v_model.iterate_over_time()
+            self.v_model.initialize()
 
             # Save image to viewer
-            _add_surface_layer(self.viewer, v_model)
+            _add_surface_layer(self.viewer, self.v_model)
+
+        except Exception as e:  # noqa: BLE001
+            print(f"An error occurred while loading the image layer: {e}")
+
+
+    def _run_model(self):
+        try:
+            # Run the simulation
+            self.v_model.iterate_over_time()
+
+            # Save image to viewer
+            _add_surface_layer(self.viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
+
 
 
 

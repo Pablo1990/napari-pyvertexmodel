@@ -19,17 +19,7 @@ def _add_surface_layer(viewer, v_model):
         The vertex model containing cells to visualize
     """
     # Batch all cells into a single layer for better performance
-    all_vertices = []
-    all_faces = []
-    all_scalars = []
-
-    for _cell_id, c_cell in enumerate(v_model.geo.Cells):
-        if c_cell.AliveStatus is not None:
-            _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
-
-            all_vertices.append(t_vertices)
-            all_faces.append(t_faces)
-            all_scalars.append(t_scalars)
+    all_faces, all_scalars, all_vertices = _get_mesh(v_model)
 
     # Only create/update layer if we have data
     if all_vertices:
@@ -62,7 +52,27 @@ def _add_surface_layer(viewer, v_model):
             )
 
 
-def _create_surface_data(c_cell, v_model) -> tuple[str, Any, Any, Any]:
+def _get_mesh(v_model) -> tuple[list[Any], list[Any], list[Any]]:
+    all_vertices = []
+    all_faces = []
+    all_scalars = []
+
+    # Accumulate offset for face indices
+    offset_indices = 0
+    for _cell_id, c_cell in enumerate(v_model.geo.Cells):
+        if c_cell.AliveStatus is not None:
+            _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model, offset_indices=offset_indices)
+
+            all_vertices.append(t_vertices)
+            all_faces.append(t_faces)
+            all_scalars.append(t_scalars)
+
+            # Update offset for next cell
+            offset_indices += t_vertices.shape[0]
+    return all_faces, all_scalars, all_vertices
+
+
+def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, Any, Any]:
     """
     Create surface data for a cell
     :param c_cell:
@@ -84,6 +94,12 @@ def _create_surface_data(c_cell, v_model) -> tuple[str, Any, Any, Any]:
             # If there are fewer scalars than vertices, pad with zeros
             padding = np.zeros(t_vertices.shape[0] - len(t_scalars))
             t_scalars = np.concatenate((t_scalars, padding))
+
+    print(t_scalars)
+
+    # Adjust face indices with offset integer
+    t_faces += offset_indices
+    print(t_faces)
 
     # Return the layer name and the surface data
     return layer_name_cell, t_faces, t_scalars, t_vertices
