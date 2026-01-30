@@ -70,7 +70,6 @@ class Run3dVertexModel(Container):
 
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
-        self._load_simulation_button.connect(self._load_simulation)
 
         # append into/extend the container with your widgets
         self.extend(
@@ -89,47 +88,30 @@ class Run3dVertexModel(Container):
             return
         try:
             # Create Vertex Model
-            vModel = VertexModelVoronoiFromTimeImage(
+            v_model = VertexModelVoronoiFromTimeImage(
                 create_output_folder=False,
                 set_option=DEFAULT_VERTEX_MODEL_OPTION
             )
 
             # Initialize model
-            vModel.initialize()
+            v_model.initialize()
             # Run the simulation
-            vModel.iterate_over_time()
+            v_model.iterate_over_time()
 
             # Save image to viewer
-            self._add_surface_layer(vModel)
+            self._add_surface_layer(v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
 
-    def _load_simulation(self):
-        file_path = self._load_simulation_button.value
-        if not file_path:
-            return
-        try:
-            # Load the simulation state
-            vModel = VertexModelVoronoiFromTimeImage(
-                create_output_folder=False,
-                set_option=DEFAULT_VERTEX_MODEL_OPTION
-            )
-            load_state(vModel, file_path)
-
-            # Save image to viewer
-            self._add_surface_layer(vModel)
-        except Exception as e:  # noqa: BLE001
-            print(f"An error occurred while loading the simulation: {e}")
-
-    def _add_surface_layer(self, vModel):
+    def _add_surface_layer(self, v_model):
         """
         Add surface layer to napari viewer
-        :param vModel:
+        :param v_model:
         :return:
         """
-        layer_name = vModel.model_name
+        layer_name = v_model.model_name
 
-        for _cell_id, c_cell in enumerate(vModel.geo.Cells):
+        for _cell_id, c_cell in enumerate(v_model.geo.Cells):
             layer_name_cell = f"{layer_name}_cell_{c_cell.ID}"
             vtk_poly = c_cell.create_vtk()
             t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
@@ -148,7 +130,7 @@ class Run3dVertexModel(Container):
                 )
 
                 # Update timepoint that is displayed
-                self.viewer.dims.set_current_step(0, vModel.t)
+                self.viewer.dims.set_current_step(0, v_model.t)
 
             except KeyError:
                 # otherwise add it to the viewer
