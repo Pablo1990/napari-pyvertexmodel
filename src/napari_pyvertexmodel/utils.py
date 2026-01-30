@@ -49,11 +49,22 @@ def _create_surface_data(c_cell, v_model) -> tuple[str, Any, Any, Any]:
     :param v_model:
     :return: layer_name_cell, t_faces, t_scalars, t_vertices
     """
+    # Create VTK polydata for the cell
     layer_name_cell = f"{v_model.set.model_name}_cell_{c_cell.ID}"
     vtk_poly = c_cell.create_vtk()
     t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
     t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
     t_scalars = vtk_to_numpy(vtk_poly.GetCellData().GetScalars())
 
+    # Check t_scalars length matches number of vertices
+    if len(t_scalars) != t_vertices.shape[0]:
+        if len(t_scalars) > t_vertices.shape[0]:
+            t_scalars = t_scalars[: t_vertices.shape[0]]
+        else:
+            # If there are fewer scalars than vertices, pad with zeros
+            padding = np.zeros(t_vertices.shape[0] - len(t_scalars))
+            t_scalars = np.concatenate((t_scalars, padding))
+
+    # Return the layer name and the surface data
     return layer_name_cell, t_faces, t_scalars, t_vertices
 
