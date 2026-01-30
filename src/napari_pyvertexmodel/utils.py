@@ -8,38 +8,63 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 
 def _add_surface_layer(viewer, v_model):
     """
-    Add surface layer to napari viewer
+    Add surface layer to napari viewer.
+    Batches all cells into a single layer for better performance.
     :param v_model:
     :return:
     """
+    # Batch all cells into a single layer for better performance
+    all_vertices = []
+    all_faces = []
+    all_scalars = []
+    vertex_offset = 0
+
     for _cell_id, c_cell in enumerate(v_model.geo.Cells):
         if c_cell.AliveStatus is not None:
-            layer_name_cell, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
+            _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
 
-            try:
-                # if the layer exists, update the data
-                curr_verts, curr_faces, curr_values = viewer.layers[
-                    layer_name_cell
-                ].data
+            # Append vertices directly
+            all_vertices.append(t_vertices)
 
-                viewer.layers[layer_name_cell].data = (
-                    np.concatenate((curr_verts, t_vertices), axis=0),
-                    np.concatenate((curr_faces, t_faces), axis=0),
-                    np.concatenate((curr_values, t_scalars), axis=0),
-                )
+            # Offset face indices to account for previously added vertices
+            offset_faces = t_faces + vertex_offset
+            all_faces.append(offset_faces)
 
-                # Update timepoint that is displayed
-                viewer.dims.set_current_step(0, v_model.t)
+            # Append scalars directly
+            all_scalars.append(t_scalars)
 
-            except KeyError:
-                # otherwise add it to the viewer
-                viewer.add_surface(
-                    (t_vertices, t_faces, t_scalars),
-                    colormap="plasma",
-                    opacity=0.9,
-                    contrast_limits=[0, 1],
-                    name=layer_name_cell,
-                )
+            # Update offset for next cell
+            vertex_offset += len(t_vertices)
+
+    # Only create/update layer if we have data
+    if all_vertices:
+        # Concatenate all cell data into single arrays
+        merged_vertices = np.concatenate(all_vertices, axis=0)
+        merged_faces = np.concatenate(all_faces, axis=0)
+        merged_scalars = np.concatenate(all_scalars, axis=0)
+
+        layer_name = f"{v_model.set.model_name}_all_cells"
+
+        try:
+            # if the layer exists, update the data
+            viewer.layers[layer_name].data = (
+                merged_vertices,
+                merged_faces,
+                merged_scalars,
+            )
+
+            # Update timepoint that is displayed
+            viewer.dims.set_current_step(0, v_model.t)
+
+        except KeyError:
+            # otherwise add it to the viewer
+            viewer.add_surface(
+                (merged_vertices, merged_faces, merged_scalars),
+                colormap="plasma",
+                opacity=0.9,
+                contrast_limits=[0, 1],
+                name=layer_name,
+            )
 
 
 def _create_surface_data(c_cell, v_model) -> tuple[str, Any, Any, Any]:
