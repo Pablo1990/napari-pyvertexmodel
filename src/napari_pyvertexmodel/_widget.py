@@ -30,12 +30,12 @@ Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
 
-import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
-from vtkmodules.util.numpy_support import vtk_to_numpy
+
+from napari_pyvertexmodel.utils import _add_surface_layer
 
 if TYPE_CHECKING:
     import napari
@@ -97,46 +97,9 @@ class Run3dVertexModel(Container):
             v_model.iterate_over_time()
 
             # Save image to viewer
-            self._add_surface_layer(v_model)
+            _add_surface_layer(self.viewer, v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
 
-    def _add_surface_layer(self, v_model):
-        """
-        Add surface layer to napari viewer
-        :param v_model:
-        :return:
-        """
-        layer_name = v_model.model_name
 
-        for _cell_id, c_cell in enumerate(v_model.geo.Cells):
-            layer_name_cell = f"{layer_name}_cell_{c_cell.ID}"
-            vtk_poly = c_cell.create_vtk()
-            t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
-            t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
-            t_scalars = vtk_to_numpy(vtk_poly.GetScalars()).astype(np.float32)
-            try:
-                # if the layer exists, update the data
-                curr_verts, curr_faces, curr_values = self.viewer.layers[
-                    layer_name_cell
-                ].data
-
-                self.viewer.layers[layer_name_cell].data = (
-                    np.concatenate((curr_verts, t_vertices), axis=0),
-                    np.concatenate((curr_faces, t_faces), axis=0),
-                    np.concatenate((curr_values, t_scalars), axis=0),
-                )
-
-                # Update timepoint that is displayed
-                self.viewer.dims.set_current_step(0, v_model.t)
-
-            except KeyError:
-                # otherwise add it to the viewer
-                self.viewer.add_surface(
-                    (t_vertices, t_faces, t_scalars),
-                    colormap="viridis",
-                    opacity=0.9,
-                    contrast_limits=[0, 1],
-                    name=layer_name,
-                )
 

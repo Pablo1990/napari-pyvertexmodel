@@ -13,6 +13,8 @@ from pathlib import Path
 
 import numpy as np
 
+from napari_pyvertexmodel.utils import _create_surface_data
+
 # Default simulation option for pyVertexModel
 DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
 
@@ -77,9 +79,12 @@ def pkl_reader_function(path):
     # Handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
+    print(paths)
+
     layer_data_list = []
 
     for file_path in paths:
+        print(file_path)
         try:
             # Load the vertex model state from pickle file
             v_model = VertexModelVoronoiFromTimeImage(
@@ -90,11 +95,7 @@ def pkl_reader_function(path):
 
             # Convert the vertex model to surface layer data
             for _cell_id, c_cell in enumerate(v_model.geo.Cells):
-                layer_name_cell = f"{v_model.model_name}_cell_{c_cell.ID}"
-                vtk_poly = c_cell.create_vtk()
-                t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
-                t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
-                t_scalars = vtk_to_numpy(vtk_poly.GetScalars()).astype(np.float32)
+                layer_name_cell, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
 
                 # Create surface layer data
                 surface_data = (t_vertices, t_faces, t_scalars)
