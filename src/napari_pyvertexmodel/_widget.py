@@ -32,6 +32,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
@@ -60,10 +61,10 @@ class Run3dVertexModel(Container):
         self._tissue_height_slider = create_widget(
             label="Tissue Height", annotation=float, widget_type="FloatSlider"
         )
-        self._tissue_height_widget.min = 0.01
-        self._tissue_height_widget.max = 100.0
-        self._tissue_height_widget.step = 0.01
-        self._tissue_height_widget.value = 50
+        self._tissue_height_slider.min = 0.01
+        self._tissue_height_slider.max = 100.0
+        self._tissue_height_slider.step = 0.01
+        self._tissue_height_slider.value = 50
 
         # Button to load image layer
         self._image_layer_load_button = PushButton(text="Load Labels")
@@ -267,31 +268,50 @@ class Run3dVertexModel(Container):
             load_state(self.v_model, pkl_file)
 
             self.v_model.set.OutputFolder = None  # Disable output folder
-            self.v_model.set.redirect_output()
 
             # Update sliders with loaded model parameters
-            self._tissue_height_slider.value = self.v_model.set.CellHeight
-            self._lambda_volume_slider.value = self.v_model.set.lambdaV
-            self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
-            self._lambda_surface_bottom_slider.value = self.v_model.set.lambdaS3
-            self._lambda_surface_lateral_slider.value = self.v_model.set.lambdaS2
-            self._volume_reference_slider.value = self.v_model.set.ref_A0
-            self._surface_area_reference_slider.value = self.v_model.set.ref_A0
-            self._k_substrate_slider.value = self.v_model.set.kSubstrate
-            self._t_end_slider.value = self.v_model.set.tend
-
-            if self._show_advanced_params_checkbox.value:
-                self._lambda_r_slider.value = self.v_model.set.lambdaR
-                self._viscosity_slider.value = self.v_model.set.nu
-                self._remodelling_checkbox.value = self.v_model.set.RemodelCells
-                self._ablation_checkbox.value = self.v_model.set.AblateCells
-                self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
+            self._update_sliders_from_model()
 
             print("Simulation loaded successfully.")
             # Save image to viewer
             _add_surface_layer(self._viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the simulation: {e}")
+
+    def _update_sliders_from_model(self):
+        self._tissue_height_slider.value = self.v_model.set.CellHeight
+        self._lambda_volume_slider.value = self.v_model.set.lambdaV
+        self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
+        self._lambda_surface_bottom_slider.value = self.v_model.set.lambdaS3
+        self._lambda_surface_lateral_slider.value = self.v_model.set.lambdaS2
+        self._volume_reference_slider.value = self.v_model.set.ref_A0
+        self._surface_area_reference_slider.value = self.v_model.set.ref_A0
+        self._k_substrate_slider.value = self.v_model.set.kSubstrate
+        self._t_end_slider.value = self.v_model.set.tend
+
+        if self._show_advanced_params_checkbox.value:
+            self._lambda_r_slider.value = self.v_model.set.lambdaR
+            self._viscosity_slider.value = self.v_model.set.nu
+            self._remodelling_checkbox.value = self.v_model.set.RemodelCells
+            self._ablation_checkbox.value = self.v_model.set.AblateCells
+            self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
+
+    def _update_model_from_sliders(self):
+        self.v_model.set.CellHeight = self._tissue_height_slider.value
+        self.v_model.set.lambdaV = self._lambda_volume_slider.value
+        self.v_model.set.lambdaS1 = self._lambda_surface_top_slider.value
+        self.v_model.set.lambdaS3 = self._lambda_surface_bottom_slider.value
+        self.v_model.set.lambdaS2 = self._lambda_surface_lateral_slider.value
+        self.v_model.set.ref_A0 = self._surface_area_reference_slider.value
+        self.v_model.set.kSubstrate = self._k_substrate_slider.value
+        self.v_model.set.tend = self._t_end_slider.value
+
+        if self._show_advanced_params_checkbox.value:
+            self.v_model.set.lambdaR = self._lambda_r_slider.value
+            self.v_model.set.nu = self._viscosity_slider.value
+            self.v_model.set.RemodelCells = self._remodelling_checkbox.value
+            self.v_model.set.AblateCells = self._ablation_checkbox.value
+            self.v_model.set.CellsToAblate = np.arange(self._cells_to_ablate_slider.value)
 
     def _image_layer_load(self):
         try:
@@ -321,14 +341,20 @@ class Run3dVertexModel(Container):
         self.v_model.set.redirect_output()
 
     def _run_model(self):
-        try:
-            # Run the simulation
-            self.v_model.iterate_over_time()
+        self.v_model.t = 0  # Reset time
 
-            # Save image to viewer
-            _add_surface_layer(self._viewer, self.v_model)
-        except Exception as e:  # noqa: BLE001
-            print(f"An error occurred while running the Vertex Model: {e}")
+        # Update model parameters from sliders
+        self._update_model_from_sliders()
+
+        # Create temporary folder for output
+        self._create_temp_folder()
+
+        # Run the simulation
+        self.v_model.iterate_over_time()
+
+        # Save image to viewer
+        _add_surface_layer(self._viewer, self.v_model)
+
 
     def _display_advanced_params(self):
         if self._show_advanced_params_checkbox.value:
