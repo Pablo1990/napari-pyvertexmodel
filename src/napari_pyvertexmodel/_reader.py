@@ -98,7 +98,7 @@ def pkl_reader_function(path):
                     surface_data = (t_vertices, t_faces, t_scalars)
                     add_kwargs = {
                         'name': layer_name_cell,
-                        'colormap': 'pink',
+                        'colormap': 'plasma',
                         'opacity': 0.9,
                         'contrast_limits': [0, 1]
                     }
