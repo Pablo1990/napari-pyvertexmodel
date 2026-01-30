@@ -89,22 +89,48 @@ def pkl_reader_function(path):
             )
             load_state(v_model, file_path)
 
-            # Convert the vertex model to surface layer data
+            # Batch all cells into a single layer for better performance
+            # Instead of creating 150+ separate layers, merge all cells
+            all_vertices = []
+            all_faces = []
+            all_scalars = []
+            vertex_offset = 0
+
             for _cell_id, c_cell in enumerate(v_model.geo.Cells):
                 if c_cell.AliveStatus is not None:
-                    layer_name_cell, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
+                    _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
 
-                    # Create surface layer data
-                    surface_data = (t_vertices, t_faces, t_scalars)
-                    add_kwargs = {
-                        'name': layer_name_cell,
-                        'colormap': 'plasma',
-                        'opacity': 0.9,
-                        'contrast_limits': [0, 1]
-                    }
-                    layer_type = "surface"
+                    # Append vertices directly
+                    all_vertices.append(t_vertices)
 
-                    layer_data_list.append((surface_data, add_kwargs, layer_type))
+                    # Offset face indices to account for previously added vertices
+                    offset_faces = t_faces + vertex_offset
+                    all_faces.append(offset_faces)
+
+                    # Append scalars directly
+                    all_scalars.append(t_scalars)
+
+                    # Update offset for next cell
+                    vertex_offset += len(t_vertices)
+
+            # Only create layer if we have data
+            if all_vertices:
+                # Concatenate all cell data into single arrays
+                merged_vertices = np.concatenate(all_vertices, axis=0)
+                merged_faces = np.concatenate(all_faces, axis=0)
+                merged_scalars = np.concatenate(all_scalars, axis=0)
+
+                # Create single surface layer with all cells
+                surface_data = (merged_vertices, merged_faces, merged_scalars)
+                add_kwargs = {
+                    'name': f'{v_model.set.model_name}_all_cells',
+                    'colormap': 'plasma',
+                    'opacity': 0.9,
+                    'contrast_limits': [0, 1]
+                }
+                layer_type = "surface"
+
+                layer_data_list.append((surface_data, add_kwargs, layer_type))
         except Exception as e:  # noqa: BLE001
             # Log error but continue with other files
             print(f"Error loading {file_path}: {e}")
