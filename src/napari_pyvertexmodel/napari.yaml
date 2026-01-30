@@ -42,7 +42,3 @@ contributions:
   menus:
     napari/layers/segment:
       - command: napari-pyvertexmodel.make_container_widget
-      - command: napari-pyvertexmodel.make_magic_widget
-      - command: napari-pyvertexmodel.make_function_widget
-      - command: napari-pyvertexmodel.make_qwidget
-
