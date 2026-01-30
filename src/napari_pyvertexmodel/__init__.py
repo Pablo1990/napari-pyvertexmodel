@@ -6,7 +6,7 @@ except ImportError:
 
 from ._reader import napari_get_reader
 from ._sample_data import make_sample_data
-from ._widget import ExampleQWidget, Run3dVertexModel, threshold_autogenerate_widget, threshold_magic_widget
+from ._widget import Run3dVertexModel
 from ._writer import write_multiple, write_single_image
 
 __all__ = (

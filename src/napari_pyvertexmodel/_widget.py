@@ -31,16 +31,17 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from magicgui import magic_factory
-from magicgui.widgets import CheckBox, Container, create_widget
-from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
-from skimage.util import img_as_float
-from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import VertexModelVoronoiFromTimeImage
-from src.pyVertexModel.util.utils import load_state
+from magicgui.widgets import CheckBox, Container, PushButton, create_widget
+from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+    VertexModelVoronoiFromTimeImage,
+)
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 if TYPE_CHECKING:
     import napari
+
+# Default simulation option for pyVertexModel
+DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
 
 # magicgui `Container`
 class Run3dVertexModel(Container):
@@ -63,11 +64,10 @@ class Run3dVertexModel(Container):
         self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
 
         # Add button to run Vertex Model
-        self._run_button = QPushButton("Run it!")
+        self._run_button = PushButton(text="Run it!")
 
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
-        self._load_simulation_button.connect(self._load_simulation)
 
         # append into/extend the container with your widgets
         self.extend(
@@ -86,41 +86,30 @@ class Run3dVertexModel(Container):
             return
         try:
             # Create Vertex Model
-            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
+            v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            )
 
             # Initialize model
-            vModel.initialize()
+            v_model.initialize()
             # Run the simulation
-            vModel.iterate_over_time()
+            v_model.iterate_over_time()
 
             # Save image to viewer
-            self._add_surface_layer(vModel)
-        except Exception as e:
+            self._add_surface_layer(v_model)
+        except Exception as e:  # noqa: BLE001
             print(f"An error occurred while running the Vertex Model: {e}")
 
-    def _load_simulation(self):
-        file_path = self._load_simulation_button.value
-        if not file_path:
-            return
-        try:
-            # Load the simulation state
-            vModel = VertexModelVoronoiFromTimeImage(create_output_folder=False, set_option='wing_disc_equilibrium')
-            load_state(vModel, file_path)
-
-            # Save image to viewer
-            self._add_surface_layer(vModel)
-        except Exception as e:
-            print(f"An error occurred while loading the simulation: {e}")
-
-    def _add_surface_layer(self, vModel):
+    def _add_surface_layer(self, v_model):
         """
         Add surface layer to napari viewer
-        :param vModel:
+        :param v_model:
         :return:
         """
-        layer_name = vModel.model_name
+        layer_name = v_model.model_name
 
-        for cell_id, c_cell in enumerate(vModel.geo.Cells):
+        for _cell_id, c_cell in enumerate(v_model.geo.Cells):
             layer_name_cell = f"{layer_name}_cell_{c_cell.ID}"
             vtk_poly = c_cell.create_vtk()
             t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
@@ -139,7 +128,7 @@ class Run3dVertexModel(Container):
                 )
 
                 # Update timepoint that is displayed
-                self.viewer.dims.set_current_step(0, vModel.t)
+                self.viewer.dims.set_current_step(0, v_model.t)
 
             except KeyError:
                 # otherwise add it to the viewer
