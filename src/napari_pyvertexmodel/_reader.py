@@ -1,11 +1,22 @@
 """
-This module is an example of a barebones numpy reader plugin for napari.
+This module implements a reader plugin for napari that can read
+both .npy and .pkl files.
 
-It implements the Reader specification, but your plugin may choose to
-implement multiple readers or even other plugin contributions. see:
+- .npy files: Numpy arrays (currently limited to integer arrays)
+- .pkl files: pyVertexModel simulation states that are loaded and
+  visualized as surface layers in napari
+
+It implements the Reader specification for napari.
 https://napari.org/stable/plugins/building_a_plugin/guides.html#readers
 """
+from pathlib import Path
+
 import numpy as np
+
+from napari_pyvertexmodel.utils import _get_mesh
+
+# Default simulation option for pyVertexModel
+DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
 
 
 def napari_get_reader(path):
@@ -28,27 +39,86 @@ def napari_get_reader(path):
         # so we are only going to look at the first file.
         path = path[0]
 
-    # the get_reader function should make as many checks as possible
-    # (without loading the full file) to determine if it can read
-    # the path. Here, we check the dtype of the array by loading
-    # it with memmap, so that we don't actually load the full array into memory.
-    # We pretend that this reader can only read integer arrays.
-    try:
-        arr = np.load(path, mmap_mode='r')
-        if arr.dtype != np.int_:
+    # Check if the file is a .pkl or .npy file
+    path_obj = Path(path)
+    if path_obj.suffix.lower() == '.pkl':
+        return pkl_reader_function
+    elif path_obj.suffix.lower() == '.npy':
+        # Check if it's a valid numpy array
+        try:
+            arr = np.load(path, mmap_mode='r')
+            if arr.dtype != np.int_:
+                return None
+        except OSError:
             return None
-    # napari_get_reader should never raise an exception, because napari
-    # raises its own specific errors depending on what plugins are
-    # available for the given path, so we catch
-    # the OSError that np.load might raise if the file is malformed
-    except OSError:
-        return None
+        return npy_reader_function
 
-    # otherwise we return the *function* that can read ``path``.
-    return reader_function
+    return None
 
 
-def reader_function(path):
+def pkl_reader_function(path):
+    """Read a .pkl file and return layer data.
+
+    Parameters
+    ----------
+    path : str or list of str
+        Path to file, or list of paths.
+
+    Returns
+    -------
+    layer_data : list of tuples
+        A list of LayerData tuples where each tuple contains
+        (data, metadata, layer_type).
+    """
+    from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+        VertexModelVoronoiFromTimeImage,
+    )
+    from src.pyVertexModel.util.utils import load_state
+
+    # Handle both a string and a list of strings
+    paths = [path] if isinstance(path, str) else path
+
+    layer_data_list = []
+
+    for file_path in paths:
+        try:
+            # Load the vertex model state from pickle file
+            v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            )
+            load_state(v_model, file_path)
+
+            # Batch all cells into a single layer for better performance
+            all_faces, all_scalars, all_vertices = _get_mesh(v_model)
+
+            # Only create layer if we have data
+            if all_vertices:
+                # Concatenate all cell data into single arrays
+                merged_vertices = np.concatenate(all_vertices, axis=0)
+                merged_faces = np.concatenate(all_faces, axis=0)
+                merged_scalars = np.concatenate(all_scalars, axis=0)
+
+                # Create single surface layer with all cells
+                surface_data = (merged_vertices, merged_faces, merged_scalars)
+                add_kwargs = {
+                    'name': f'{v_model.set.model_name}_all_cells',
+                    'colormap': 'plasma',
+                    'opacity': 0.9,
+                    'contrast_limits': [0.0001, 0.0006],
+                }
+                layer_type = "surface"
+
+                layer_data_list.append((surface_data, add_kwargs, layer_type))
+        except Exception as e:  # noqa: BLE001
+            # Log error but continue with other files
+            print(f"Error loading {file_path}: {e}")
+            continue
+
+    return layer_data_list
+
+
+def npy_reader_function(path):
     """Take a path or list of paths and return a list of LayerData tuples.
 
     Readers are expected to return data as a list of tuples, where each tuple

@@ -28,101 +28,394 @@ References:
 
 Replace code below according to your needs.
 """
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from magicgui import magic_factory
-from magicgui.widgets import CheckBox, Container, create_widget
-from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
-from skimage.util import img_as_float
+import numpy as np
+from magicgui.widgets import CheckBox, Container, PushButton, create_widget
+from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+    VertexModelVoronoiFromTimeImage,
+)
+
+from napari_pyvertexmodel.utils import _add_surface_layer
 
 if TYPE_CHECKING:
     import napari
 
+# Default simulation option for pyVertexModel
+DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
 
-# Uses the `autogenerate: true` flag in the plugin manifest
-# to indicate it should be wrapped as a magicgui to autogenerate
-# a widget.
-def threshold_autogenerate_widget(
-    img: "napari.types.ImageData",
-    threshold: "float",
-) -> "napari.types.LabelsData":
-    return img_as_float(img) > threshold
-
-
-# the magic_factory decorator lets us customize aspects of our widget
-# we specify a widget type for the threshold parameter
-# and use auto_call=True so the function is called whenever
-# the value of a parameter changes
-@magic_factory(
-    threshold={"widget_type": "FloatSlider", "max": 1}, auto_call=True
-)
-def threshold_magic_widget(
-    img_layer: "napari.layers.Image", threshold: "float"
-) -> "napari.types.LabelsData":
-    return img_as_float(img_layer.data) > threshold
-
-
-# if we want even more control over our widget, we can use
 # magicgui `Container`
-class ImageThreshold(Container):
+class Run3dVertexModel(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
         self._viewer = viewer
-        # use create_widget to generate widgets from type annotations
+        self._viewer.dims.ndisplay = 3  # Set viewer to 3D display
+
+        # Image layer selection
         self._image_layer_combo = create_widget(
-            label="Image", annotation="napari.layers.Image"
+            label="Input Labels", annotation="napari.layers.Labels"
         )
-        self._threshold_slider = create_widget(
-            label="Threshold", annotation=float, widget_type="FloatSlider"
+        # Add tissue height
+        self._tissue_height_slider = create_widget(
+            label="Tissue Height", annotation=float, widget_type="FloatSlider"
         )
-        self._threshold_slider.min = 0
-        self._threshold_slider.max = 1
-        # use magicgui widgets directly
-        self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
+        self._tissue_height_slider.min = 0.01
+        self._tissue_height_slider.max = 100.0
+        self._tissue_height_slider.step = 0.01
+        self._tissue_height_slider.value = 50
+
+        # Button to load image layer
+        self._image_layer_load_button = PushButton(text="Load Labels")
+
+        # ----- Sliders with mechanical parameters -----
+        # Lambda Volume slider
+        self._lambda_volume_slider = create_widget(
+            label=r'$\lambda_V$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_volume_slider.min = 0
+        self._lambda_volume_slider.max = 10
+        self._lambda_volume_slider.step = 0.01
+        self._lambda_volume_slider.value = 1.0
+
+        # Volume reference slider
+        self._volume_reference_slider = create_widget(
+            label=r'$V_{0}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._volume_reference_slider.min = 0
+        self._volume_reference_slider.max = 10
+        self._volume_reference_slider.step = 0.01
+        self._volume_reference_slider.value = 1.0
+
+        # Lambda Surface top slider
+        self._lambda_surface_top_slider = create_widget(
+            label=r'$\lambda_{S1}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_top_slider.min = 0
+        self._lambda_surface_top_slider.max = 10
+        self._lambda_surface_top_slider.step = 0.01
+        self._lambda_surface_top_slider.value = 0.5
+
+        # Lambda Surface bottom slider
+        self._lambda_surface_bottom_slider = create_widget(
+            label=r'$\lambda_{S3}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_bottom_slider.min = 0
+        self._lambda_surface_bottom_slider.max = 10
+        self._lambda_surface_bottom_slider.step = 0.01
+        self._lambda_surface_bottom_slider.value = 0.5
+
+        # Lambda Surface lateral slider
+        self._lambda_surface_lateral_slider = create_widget(
+            label=r'$\lambda_{S2}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_surface_lateral_slider.min = 0
+        self._lambda_surface_lateral_slider.max = 10
+        self._lambda_surface_lateral_slider.step = 0.01
+        self._lambda_surface_lateral_slider.value = 0.1
+
+        # Surface Area reference slider
+        self._surface_area_reference_slider = create_widget(
+            label=r'$A_{0}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._surface_area_reference_slider.min = 0
+        self._surface_area_reference_slider.max = 10
+        self._surface_area_reference_slider.step = 0.01
+        self._surface_area_reference_slider.value = 0.92
+
+        # K substrate slider
+        self._k_substrate_slider = create_widget(
+            label=r'$k_{Substrate}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._k_substrate_slider.min = 0
+        self._k_substrate_slider.max = 1
+        self._k_substrate_slider.step = 0.001
+        self._k_substrate_slider.value = 0.1
+
+        # T end slider
+        self._t_end_slider = create_widget(
+            label=r'$t_{end}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._t_end_slider.min = 0
+        self._t_end_slider.max = 30
+        self._t_end_slider.step = 0.1
+        self._t_end_slider.value = 1
+
+        # --- Advanced mechanical parameters hidden by default ---
+        # Checkbox to show/hide advanced parameters
+        self._show_advanced_params_checkbox = CheckBox(
+            text="Show Advanced Parameters", value=False
+        )
+
+        # Energy Barrier (Lambda R) slider
+        self._lambda_r_slider = create_widget(
+            label=r'$\lambda_{R}$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._lambda_r_slider.min = 0
+        self._lambda_r_slider.max = 1e-4
+        self._lambda_r_slider.step = 1e-8
+        self._lambda_r_slider.value = 8e-7
+
+        # Viscosity slider
+        self._viscosity_slider = create_widget(
+            label=r'$\nu$',
+            annotation=float,
+            widget_type="FloatSlider"
+        )
+        self._viscosity_slider.min = 0
+        self._viscosity_slider.max = 1
+        self._viscosity_slider.step = 0.001
+        self._viscosity_slider.value = 0.07
+
+        # Remodelling checkbox
+        self._remodelling_checkbox = CheckBox(
+            text="Enable Remodelling", value=False
+        )
+
+        # Ablation checkbox
+        self._ablation_checkbox = CheckBox(
+            text="Enable Ablation", value=False
+        )
+
+        # Cells to ablate slider
+        self._cells_to_ablate_slider = create_widget(
+            label=r'Cells to Ablate',
+            annotation=int,
+            widget_type="IntSlider"
+        )
+        self._cells_to_ablate_slider.min = 0
+        self._cells_to_ablate_slider.max = 10
+        self._cells_to_ablate_slider.step = 1
+        self._cells_to_ablate_slider.value = 0
+
+        # -----------------------------------------------
+        # Load simulation input
+        self._load_simulation_input = create_widget(
+            label="Load Simulation", annotation=str, widget_type="FileEdit"
+        )
+        self._load_simulation_button = PushButton(text="Load")
+
+        # Add button to run Vertex Model
+        self._run_button = PushButton(text="Run it!")
 
         # connect your own callbacks
-        self._threshold_slider.changed.connect(self._threshold_im)
-        self._invert_checkbox.changed.connect(self._threshold_im)
+        self._run_button.clicked.connect(self._run_model)
+        self._load_simulation_button.clicked.connect(self._load_simulation)
+        self._image_layer_load_button.clicked.connect(self._image_layer_load)
+        self._show_advanced_params_checkbox.clicked.connect(self._display_advanced_params)
 
         # append into/extend the container with your widgets
         self.extend(
             [
                 self._image_layer_combo,
-                self._threshold_slider,
-                self._invert_checkbox,
+                self._tissue_height_slider,
+                self._image_layer_load_button,
+                self._lambda_volume_slider,
+                self._volume_reference_slider,
+                self._lambda_surface_top_slider,
+                self._lambda_surface_bottom_slider,
+                self._lambda_surface_lateral_slider,
+                self._surface_area_reference_slider,
+                self._k_substrate_slider,
+                self._t_end_slider,
+                self._show_advanced_params_checkbox,
+                self._load_simulation_input,
+                self._load_simulation_button,
+                self._run_button,
             ]
         )
 
-    def _threshold_im(self):
-        image_layer = self._image_layer_combo.value
-        if image_layer is None:
+        # Extended attributes
+        self.v_model = None
+        self._temp_dir = None  # Store temp directory reference for cleanup
+    
+    def __del__(self):
+        """Cleanup temporary directory on widget destruction."""
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception:  # noqa: BLE001
+                pass  # Silently ignore cleanup errors during destruction
+
+    def _load_simulation(self):
+        try:
+            pkl_file = self._load_simulation_input.value
+            if pkl_file is None:
+                return
+
+            pkl_file = str(Path(pkl_file))
+
+            if not pkl_file.endswith('.pkl'):
+                print("Please select a valid .pkl file.")
+                return
+
+            # Load the Vertex Model from the specified file
+            self.v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION,
+            )
+            from src.pyVertexModel.util.utils import load_state
+            load_state(self.v_model, pkl_file)
+
+            self.v_model.set.OutputFolder = None  # Disable output folder
+
+            # Update sliders with loaded model parameters
+            self._update_sliders_from_model()
+
+            print("Simulation loaded successfully.")
+            # Save image to viewer
+            _add_surface_layer(self._viewer, self.v_model)
+        except Exception as e:  # noqa: BLE001
+            print(f"An error occurred while loading the simulation: {e}")
+
+    def _update_sliders_from_model(self):
+        self._tissue_height_slider.value = self.v_model.set.CellHeight
+        self._lambda_volume_slider.value = self.v_model.set.lambdaV
+        self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
+        self._lambda_surface_bottom_slider.value = self.v_model.set.lambdaS3
+        self._lambda_surface_lateral_slider.value = self.v_model.set.lambdaS2
+        self._volume_reference_slider.value = self.v_model.set.ref_V0
+        self._surface_area_reference_slider.value = self.v_model.set.ref_A0
+        self._k_substrate_slider.value = self.v_model.set.kSubstrate
+        self._t_end_slider.value = self.v_model.set.tend
+
+        if self._show_advanced_params_checkbox.value:
+            self._lambda_r_slider.value = self.v_model.set.lambdaR
+            self._viscosity_slider.value = self.v_model.set.nu
+            self._remodelling_checkbox.value = self.v_model.set.RemodelCells
+            self._ablation_checkbox.value = self.v_model.set.AblateCells
+            self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
+
+    def _update_model_from_sliders(self):
+        self.v_model.set.CellHeight = self._tissue_height_slider.value
+        self.v_model.set.lambdaV = self._lambda_volume_slider.value
+        self.v_model.set.lambdaS1 = self._lambda_surface_top_slider.value
+        self.v_model.set.lambdaS3 = self._lambda_surface_bottom_slider.value
+        self.v_model.set.lambdaS2 = self._lambda_surface_lateral_slider.value
+        self.v_model.set.ref_V0 = self._volume_reference_slider.value
+        self.v_model.set.ref_A0 = self._surface_area_reference_slider.value
+        self.v_model.set.kSubstrate = self._k_substrate_slider.value
+        self.v_model.set.tend = self._t_end_slider.value
+
+        if self._show_advanced_params_checkbox.value:
+            self.v_model.set.lambdaR = self._lambda_r_slider.value
+            self.v_model.set.nu = self._viscosity_slider.value
+            self.v_model.set.RemodelCells = self._remodelling_checkbox.value
+            self.v_model.set.AblateCells = self._ablation_checkbox.value
+            self.v_model.set.CellsToAblate = np.arange(self._cells_to_ablate_slider.value)
+
+    def _image_layer_load(self):
+        try:
+            # Load the image layer from the viewer
+            image_layer = self._image_layer_combo.value
+            if image_layer is None:
+                print("Error: No labels layer selected.")
+                return
+
+            # Get the label data from the selected layer
+            label_data = image_layer.data
+            
+            # TODO: Implement proper initialization from label data
+            # Currently, VertexModelVoronoiFromTimeImage initialization from
+            # label images is not fully implemented. The model needs to be
+            # configured to accept and process the label_data array.
+            print(f"Label data shape: {label_data.shape}, dtype: {label_data.dtype}")
+            print("Warning: Loading from labels is not yet fully implemented.")
+            print("The model will be initialized with default parameters instead.")
+
+            # Create Vertex Model with default parameters
+            # Note: This should be updated to use label_data once the
+            # VertexModelVoronoiFromTimeImage class supports it
+            self.v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            )
+
+            # Initialize model (currently uses default Voronoi tessellation)
+            self.v_model.initialize()
+
+            # Save image to viewer
+            _add_surface_layer(self._viewer, self.v_model)
+
+        except Exception as e:  # noqa: BLE001
+            print(f"An error occurred while loading the image layer: {e}")
+
+    def _create_temp_folder(self):
+        # Clean up previous temp directory if it exists
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception as e:  # noqa: BLE001
+                print(f"Warning: Failed to cleanup previous temp directory: {e}")
+        
+        # Create new temp directory and store reference
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.v_model.set.OutputFolder = self._temp_dir.name
+        self.v_model.set.redirect_output()
+
+    def _run_model(self):
+        if self.v_model is None:
+            print("Error: No model loaded. Please load a simulation or labels first.")
             return
+        
+        self.v_model.t = 0  # Reset time
 
-        image = img_as_float(image_layer.data)
-        name = image_layer.name + "_thresholded"
-        threshold = self._threshold_slider.value
-        if self._invert_checkbox.value:
-            thresholded = image < threshold
+        # Update model parameters from sliders
+        self._update_model_from_sliders()
+
+        # Create temporary folder for output
+        self._create_temp_folder()
+
+        # Run the simulation
+        self.v_model.iterate_over_time()
+
+        # Save image to viewer
+        _add_surface_layer(self._viewer, self.v_model)
+
+
+    def _display_advanced_params(self):
+        if self._show_advanced_params_checkbox.value:
+            # Show advanced parameters
+            for widget in [
+                self._lambda_r_slider,
+                self._viscosity_slider,
+                self._remodelling_checkbox,
+                self._ablation_checkbox,
+                self._cells_to_ablate_slider,
+            ]:
+                if widget not in self:
+                    self.append(widget)
         else:
-            thresholded = image > threshold
-        if name in self._viewer.layers:
-            self._viewer.layers[name].data = thresholded
-        else:
-            self._viewer.add_labels(thresholded, name=name)
+            # Hide advanced parameters
+            for widget in [
+                self._lambda_r_slider,
+                self._viscosity_slider,
+                self._remodelling_checkbox,
+                self._ablation_checkbox,
+                self._cells_to_ablate_slider,
+            ]:
+                if widget in self:
+                    self.remove(widget)
 
 
-class ExampleQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # use a type annotation of 'napari.viewer.Viewer' for any parameter
-    def __init__(self, viewer: "napari.viewer.Viewer"):
-        super().__init__()
-        self.viewer = viewer
 
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
 
-        self.setLayout(QHBoxLayout())
-        self.layout().addWidget(btn)
-
-    def _on_click(self):
-        print("napari has", len(self.viewer.layers), "layers")
