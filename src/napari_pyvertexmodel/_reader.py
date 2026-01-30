@@ -74,17 +74,13 @@ def pkl_reader_function(path):
         VertexModelVoronoiFromTimeImage,
     )
     from src.pyVertexModel.util.utils import load_state
-    from vtkmodules.util.numpy_support import vtk_to_numpy
 
     # Handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    print(paths)
-
     layer_data_list = []
 
     for file_path in paths:
-        print(file_path)
         try:
             # Load the vertex model state from pickle file
             v_model = VertexModelVoronoiFromTimeImage(
@@ -95,19 +91,20 @@ def pkl_reader_function(path):
 
             # Convert the vertex model to surface layer data
             for _cell_id, c_cell in enumerate(v_model.geo.Cells):
-                layer_name_cell, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
+                if c_cell.AliveStatus is not None:
+                    layer_name_cell, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model)
 
-                # Create surface layer data
-                surface_data = (t_vertices, t_faces, t_scalars)
-                add_kwargs = {
-                    'name': layer_name_cell,
-                    'colormap': 'viridis',
-                    'opacity': 0.9,
-                    'contrast_limits': [0, 1]
-                }
-                layer_type = "surface"
+                    # Create surface layer data
+                    surface_data = (t_vertices, t_faces, t_scalars)
+                    add_kwargs = {
+                        'name': layer_name_cell,
+                        'colormap': 'viridis',
+                        'opacity': 0.9,
+                        'contrast_limits': [0, 1]
+                    }
+                    layer_type = "surface"
 
-                layer_data_list.append((surface_data, add_kwargs, layer_type))
+                    layer_data_list.append((surface_data, add_kwargs, layer_type))
         except Exception as e:  # noqa: BLE001
             # Log error but continue with other files
             print(f"Error loading {file_path}: {e}")
