@@ -277,6 +277,7 @@ class Run3dVertexModel(Container):
             load_state(self.v_model, pkl_file)
 
             self.v_model.set.OutputFolder = None  # Disable output folder
+            self.v_model.set.export_images = False  # Disable image export
 
             # Update sliders with loaded model parameters
             self._update_sliders_from_model()
@@ -346,6 +347,7 @@ class Run3dVertexModel(Container):
             self.v_model.set.initial_filename_state = os.path.join(PROJECT_DIRECTORY, 'Temp/', image_layer.name)
             self.v_model.set.model_name = image_layer.name
             self.v_model.set.OutputFolder = None
+            self.v_model.set.export_images = False  # Disable image export
 
             # Initialize model
             self.v_model.initialize(image_layer)
