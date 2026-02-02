@@ -34,7 +34,6 @@ dependencies = [
     "qtpy",
     "scikit-image",
     "pyvertexmodel",
-    "seaborn>=0.13.2",
 ]
 
 [project.optional-dependencies]

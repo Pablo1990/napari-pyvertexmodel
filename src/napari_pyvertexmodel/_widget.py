@@ -332,15 +332,7 @@ class Run3dVertexModel(Container):
                 return
 
             # Get the label data from the selected layer
-            label_data = image_layer.data
-            
-            # TODO: Implement proper initialization from label data
-            # Currently, VertexModelVoronoiFromTimeImage initialization from
-            # label images is not fully implemented. The model needs to be
-            # configured to accept and process the label_data array.
-            print(f"Label data shape: {label_data.shape}, dtype: {label_data.dtype}")
-            print("Warning: Loading from labels is not yet fully implemented.")
-            print("The model will be initialized with default parameters instead.")
+            label_data = self.viewer.layers[image_layer.name].data
 
             # Create Vertex Model with default parameters
             # Note: This should be updated to use label_data once the
@@ -350,8 +342,13 @@ class Run3dVertexModel(Container):
                 set_option=DEFAULT_VERTEX_MODEL_OPTION
             )
 
-            # Initialize model (currently uses default Voronoi tessellation)
-            self.v_model.initialize()
+            # Set model name and temporary folder
+            self.v_model.set.initial_filename_state = os.path.join(PROJECT_DIRECTORY, 'Temp/', image_layer.name)
+            self.v_model.set.model_name = image_layer.name
+            self.v_model.set.OutputFolder = None
+
+            # Initialize model
+            self.v_model.initialize(image_layer)
 
             # Save image to viewer
             _add_surface_layer(self._viewer, self.v_model)
@@ -368,9 +365,7 @@ class Run3dVertexModel(Container):
                 print(f"Warning: Failed to cleanup previous temp directory: {e}")
         
         # Create new temp directory and store reference
-        self._temp_dir = tempfile.TemporaryDirectory()
-        self.v_model.set.OutputFolder = self._temp_dir.name
-        self.v_model.set.redirect_output()
+        self.v_model.create_temporary_folder()
 
     def _run_model(self):
         if self.v_model is None:
