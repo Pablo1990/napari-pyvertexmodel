@@ -9,6 +9,7 @@ from src import PROJECT_DIRECTORY
 from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
+from src.pyVertexModel.util.utils import load_state
 
 if TYPE_CHECKING:
     import napari
@@ -243,7 +244,6 @@ class Run3dVertexModel(Container):
                 create_output_folder=False,
                 set_option=DEFAULT_VERTEX_MODEL_OPTION,
             )
-            from src.pyVertexModel.util.utils import load_state
             load_state(self.v_model, pkl_file)
 
             self.v_model.set.OutputFolder = None  # Disable output folder
@@ -316,14 +316,17 @@ class Run3dVertexModel(Container):
             # Set model name and temporary folder
             self.v_model.set.initial_filename_state = os.path.join(PROJECT_DIRECTORY, 'Temp/', image_layer.name)
             self.v_model.set.model_name = image_layer.name
+            print(f"Loading labels from layer: {image_layer.name}")
             self.v_model.set.OutputFolder = None
             self.v_model.set.export_images = False  # Disable image export
 
             # Initialize model
             self.v_model.initialize(label_data)
+            print("Labels loaded successfully.")
 
             # Save image to viewer
             _add_surface_layer(self._viewer, self.v_model)
+            print("Image layer loaded into the model.")
 
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the image layer: {e}")
