@@ -333,7 +333,7 @@ class Run3dVertexModel(Container):
                 return
 
             # Get the label data from the selected layer
-            label_data = self.viewer.layers[image_layer.name].data
+            label_data = self._viewer.layers[image_layer.name].data
 
             # Create Vertex Model with default parameters
             # Note: This should be updated to use label_data once the
