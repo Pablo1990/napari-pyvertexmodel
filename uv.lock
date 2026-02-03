@@ -1941,7 +1941,7 @@ requires-dist = [
     { name = "magicgui" },
     { name = "napari", extras = ["all"], marker = "extra == 'all'" },
     { name = "numpy" },
-    { name = "pyvertexmodel", specifier = "==1.0.5" },
+    { name = "pyvertexmodel" },
     { name = "qtpy" },
     { name = "scikit-image" },
 ]
