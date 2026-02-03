@@ -28,6 +28,14 @@ class Run3dVertexModel(Container):
         self._image_layer_combo = create_widget(
             label="Input Labels", annotation="napari.layers.Labels"
         )
+        # Add number of cells
+        self._tissue_number_of_cells_slider = create_widget(
+            label="Number of Cells", annotation=int, widget_type="IntSlider"
+        )
+        self._tissue_number_of_cells_slider.min = 10
+        self._tissue_number_of_cells_slider.max = 200
+        self._tissue_number_of_cells_slider.step = 1
+        self._tissue_number_of_cells_slider.value = 20
         # Add tissue height
         self._tissue_height_slider = create_widget(
             label="Tissue Height", annotation=float, widget_type="FloatSlider"
@@ -198,6 +206,7 @@ class Run3dVertexModel(Container):
         self.extend(
             [
                 self._image_layer_combo,
+                self._tissue_number_of_cells_slider,
                 self._tissue_height_slider,
                 self._image_layer_load_button,
                 self._lambda_volume_slider,
@@ -259,6 +268,7 @@ class Run3dVertexModel(Container):
             print(f"An error occurred while loading the simulation: {e}")
 
     def _update_sliders_from_model(self):
+        self._tissue_number_of_cells_slider.value = self.v_model.set.NumberOfCells
         self._tissue_height_slider.value = self.v_model.set.CellHeight
         self._lambda_volume_slider.value = self.v_model.set.lambdaV
         self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
@@ -277,7 +287,6 @@ class Run3dVertexModel(Container):
             self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
 
     def _update_model_from_sliders(self):
-        self.v_model.set.CellHeight = self._tissue_height_slider.value
         self.v_model.set.lambdaV = self._lambda_volume_slider.value
         self.v_model.set.lambdaS1 = self._lambda_surface_top_slider.value
         self.v_model.set.lambdaS3 = self._lambda_surface_bottom_slider.value
@@ -303,7 +312,7 @@ class Run3dVertexModel(Container):
                 return
 
             # Get the label data from the selected layer
-            label_data = self._viewer.layers[image_layer.name].data
+            label_data = image_layer.data
 
             # Create Vertex Model with default parameters
             # Note: This should be updated to use label_data once the
@@ -319,6 +328,11 @@ class Run3dVertexModel(Container):
             print(f"Loading labels from layer: {image_layer.name}")
             self.v_model.set.OutputFolder = None
             self.v_model.set.export_images = False  # Disable image export
+            self.v_model.create_temporary_folder()
+
+            # Set number of cells and tissue height
+            self.v_model.set.NumberOfCells = self._tissue_number_of_cells_slider.value
+            self.v_model.set.CellHeight = self._tissue_height_slider.value
 
             # Initialize model
             self.v_model.initialize(label_data)
