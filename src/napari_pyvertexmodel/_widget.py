@@ -1,4 +1,5 @@
 import os
+import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -339,8 +340,6 @@ class Run3dVertexModel(Container):
             print("Labels loaded successfully.")
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the labels: {e}")
-            # Print the stack trace for debugging
-            import traceback
             traceback.print_exc()
             return
 
@@ -352,6 +351,7 @@ class Run3dVertexModel(Container):
 
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the image layer: {e}")
+            traceback.print_exc()
 
     def _create_temp_folder(self):
         # Clean up previous temp directory if it exists

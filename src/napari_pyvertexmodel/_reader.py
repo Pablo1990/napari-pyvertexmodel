@@ -90,15 +90,10 @@ def pkl_reader_function(path):
             load_state(v_model, file_path)
 
             # Batch all cells into a single layer for better performance
-            all_faces, all_scalars, all_vertices = _get_mesh(v_model)
+            merged_faces, merged_scalars, merged_vertices = _get_mesh(v_model)
 
             # Only create layer if we have data
-            if all_vertices:
-                # Concatenate all cell data into single arrays
-                merged_vertices = np.concatenate(all_vertices, axis=0)
-                merged_faces = np.concatenate(all_faces, axis=0)
-                merged_scalars = np.concatenate(all_scalars, axis=0)
-
+            if merged_vertices.shape[0] > 0:
                 # Create single surface layer with all cells
                 surface_data = (merged_vertices, merged_faces, merged_scalars)
                 add_kwargs = {

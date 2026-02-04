@@ -19,15 +19,10 @@ def _add_surface_layer(viewer, v_model, input_image_dims=None, add_time_point=Fa
         The vertex model containing cells to visualize
     """
     # Batch all cells into a single layer for better performance
-    all_faces, all_scalars, all_vertices = _get_mesh(v_model, input_image_dims)
+    merged_faces, merged_scalars, merged_vertices = _get_mesh(v_model, input_image_dims)
 
-    # Only create/update layer if we have data
-    if all_vertices:
-        # Concatenate all cell data into single arrays
-        merged_vertices = np.concatenate(all_vertices, axis=0)
-        merged_faces = np.concatenate(all_faces, axis=0)
-        merged_scalars = np.concatenate(all_scalars, axis=0)
-
+    # Only create/update layer if we have data with vertices
+    if merged_vertices.shape[0] > 0:
         layer_name = f"{v_model.set.model_name}_all_cells"
 
         if add_time_point:
@@ -52,7 +47,7 @@ def _add_surface_layer(viewer, v_model, input_image_dims=None, add_time_point=Fa
             )
 
 
-def _get_mesh(v_model, input_image_dims=None) -> tuple[list[Any], list[Any], list[Any]]:
+def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
     all_vertices = []
     all_faces = []
     all_scalars = []
@@ -69,7 +64,36 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[list[Any], list[Any], lis
 
             # Update offset for next cell
             offset_indices += t_vertices.shape[0]
-    return all_faces, all_scalars, all_vertices
+
+    # Concatenate all cell data into single arrays
+    merged_vertices = np.concatenate(all_vertices, axis=0)
+    merged_faces = np.concatenate(all_faces, axis=0)
+    merged_scalars = np.concatenate(all_scalars, axis=0)
+
+    # Scale vertices to match input image dimensions if provided
+    if input_image_dims is not None:
+        # Use bounding box in X,Y to scale vertices
+        vertices_x_min = np.min(merged_vertices[:, 0])
+        vertices_x_max = np.max(merged_vertices[:, 0])
+        vertices_y_min = np.min(merged_vertices[:, 1])
+        vertices_y_max = np.max(merged_vertices[:, 1])
+        vertices_bbox_dims = np.array(
+            [vertices_x_max - vertices_x_min, vertices_y_max - vertices_y_min],
+            dtype=float,
+        )
+
+        input_dims = np.array(input_image_dims, dtype=float)
+
+        # Avoid division by zero: skip scaling on axes with zero bbox
+        scale_factors = np.ones_like(vertices_bbox_dims)
+        nonzero = vertices_bbox_dims != 0
+        if np.any(nonzero):
+            scale_factors[nonzero] = input_dims[nonzero] / vertices_bbox_dims[nonzero]
+
+        # Apply scaling to X,Y columns (not first two rows)
+        merged_vertices *= np.mean(scale_factors[nonzero])
+
+    return merged_faces, merged_scalars, merged_vertices
 
 
 def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, Any, Any]:
