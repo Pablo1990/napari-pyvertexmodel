@@ -197,7 +197,7 @@ def test_widget(make_napari_viewer):
     assert widget._viewer == viewer
 ```
 
-**Note**: Use `make_napari_viewer` fixture from pytest-qt, not manual viewer creation.
+**Note**: Use the `make_napari_viewer` fixture provided by napari’s pytest integration (with pytest-qt used alongside it for Qt event handling), rather than creating a viewer manually.
 
 ### Running Specific Tests
 ```bash
