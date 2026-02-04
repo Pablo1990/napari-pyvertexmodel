@@ -89,10 +89,9 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
         nonzero = vertices_bbox_dims != 0
         if np.any(nonzero):
             scale_factors[nonzero] = input_dims[nonzero] / vertices_bbox_dims[nonzero]
-
-        # Apply scaling to X,Y columns (not first two rows)
-        merged_vertices *= np.mean(scale_factors[nonzero])
-
+            # Apply scaling to X,Y columns only
+            scalar = float(np.mean(scale_factors[nonzero]))
+            merged_vertices[:, :2] *= scalar
     return merged_faces, merged_scalars, merged_vertices
 
 

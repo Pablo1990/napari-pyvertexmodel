@@ -374,7 +374,11 @@ class Run3dVertexModel(Container):
         self.v_model.iterate_over_time()
 
         # Save image to viewer
-        _add_surface_layer(self._viewer, self.v_model, input_image_dims=self._input_image_dims)
+        _add_surface_layer(
+            self._viewer,
+            self.v_model,
+            input_image_dims=getattr(self, "_input_image_dims", None),
+        )
 
 
     def _display_advanced_params(self):
