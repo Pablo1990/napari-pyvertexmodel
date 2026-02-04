@@ -70,10 +70,10 @@ def pkl_reader_function(path):
         A list of LayerData tuples where each tuple contains
         (data, metadata, layer_type).
     """
-    from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+    from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
         VertexModelVoronoiFromTimeImage,
     )
-    from src.pyVertexModel.util.utils import load_state
+    from pyVertexModel.util.utils import load_state
 
     # Handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
