@@ -268,7 +268,7 @@ class Run3dVertexModel(Container):
             print(f"An error occurred while loading the simulation: {e}")
 
     def _update_sliders_from_model(self):
-        self._tissue_number_of_cells_slider.value = self.v_model.set.NumberOfCells
+        self._tissue_number_of_cells_slider.value = self.v_model.set.TotalCells
         self._tissue_height_slider.value = self.v_model.set.CellHeight
         self._lambda_volume_slider.value = self.v_model.set.lambdaV
         self._lambda_surface_top_slider.value = self.v_model.set.lambdaS1
