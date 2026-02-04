@@ -354,13 +354,6 @@ class Run3dVertexModel(Container):
             traceback.print_exc()
 
     def _create_temp_folder(self):
-        # Clean up previous temp directory if it exists
-        if self._temp_dir is not None:
-            try:
-                self._temp_dir.cleanup()
-            except Exception as e:  # noqa: BLE001
-                print(f"Warning: Failed to cleanup previous temp directory: {e}")
-        
         # Create new temp directory and store reference
         self.v_model.create_temporary_folder()
 
