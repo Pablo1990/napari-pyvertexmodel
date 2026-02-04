@@ -240,7 +240,7 @@ class Run3dVertexModel(Container):
     def _load_simulation(self):
         try:
             pkl_file = self._load_simulation_input.value
-            if pkl_file is None:
+            if pkl_file is None or pkl_file == "":
                 return
 
             pkl_file = str(Path(pkl_file))

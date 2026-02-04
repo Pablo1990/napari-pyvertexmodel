@@ -49,7 +49,7 @@ def napari_get_reader(path):
             arr = np.load(path, mmap_mode='r')
             if arr.dtype != np.int_:
                 return None
-        except OSError:
+        except (OSError, ValueError):
             return None
         return npy_reader_function
 
