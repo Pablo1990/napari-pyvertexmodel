@@ -293,7 +293,7 @@ pip install tox-uv pytest pytest-cov pytest-qt
 **Root cause**: The project uses PEP 735 dependency groups (`[dependency-groups]`) instead of optional dependencies (`[project.optional-dependencies]`). This is a newer standard that pip doesn't yet fully support with the `.[dev]` syntax.
 
 ### Issue: Tests fail with display errors
-**Solution**: 
+**Solution**:
 - For CI: Ensure headless display action is configured
 - For local: Set `QT_QPA_PLATFORM=offscreen` or install Xvfb
 
@@ -315,12 +315,12 @@ If you want to use `uv` locally: `pip install uv` or follow https://github.com/a
 
 During the creation of this guide, the following issues were observed:
 
-1. **Dev dependencies not installable via `.[dev]`**: 
+1. **Dev dependencies not installable via `.[dev]`**:
    - Error: `WARNING: napari-pyvertexmodel does not provide the extra 'dev'`
    - Cause: Project uses PEP 735 `[dependency-groups]` which is not yet fully supported by pip's extras syntax
    - Workaround: Install dev dependencies manually or use tox
 
-2. **`uv` not available in local environment**: 
+2. **`uv` not available in local environment**:
    - The CI pipeline uses `uv` for faster dependency resolution, but it's not a hard requirement
    - Local development works fine with standard `pip`
    - No installation errors encountered when using pip
