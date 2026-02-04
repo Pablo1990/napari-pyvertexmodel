@@ -6,7 +6,7 @@ import numpy as np
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 
-def _add_surface_layer(viewer, v_model):
+def _add_surface_layer(viewer, v_model, input_image_dims=None, add_time_point=False):
     """
     Add surface layer to napari viewer.
     Batches all cells into a single layer for better performance.
@@ -19,7 +19,7 @@ def _add_surface_layer(viewer, v_model):
         The vertex model containing cells to visualize
     """
     # Batch all cells into a single layer for better performance
-    all_faces, all_scalars, all_vertices = _get_mesh(v_model)
+    all_faces, all_scalars, all_vertices = _get_mesh(v_model, input_image_dims)
 
     # Only create/update layer if we have data
     if all_vertices:
@@ -30,7 +30,7 @@ def _add_surface_layer(viewer, v_model):
 
         layer_name = f"{v_model.set.model_name}_all_cells"
 
-        try:
+        if add_time_point:
             # if the layer exists, update the data
             viewer.layers[layer_name].data = (
                 merged_vertices,
@@ -41,7 +41,7 @@ def _add_surface_layer(viewer, v_model):
             # Update timepoint that is displayed
             viewer.dims.set_current_step(0, v_model.t)
 
-        except KeyError:
+        else:
             # otherwise add it to the viewer
             viewer.add_surface(
                 (merged_vertices, merged_faces, merged_scalars),
@@ -52,7 +52,7 @@ def _add_surface_layer(viewer, v_model):
             )
 
 
-def _get_mesh(v_model) -> tuple[list[Any], list[Any], list[Any]]:
+def _get_mesh(v_model, input_image_dims=None) -> tuple[list[Any], list[Any], list[Any]]:
     all_vertices = []
     all_faces = []
     all_scalars = []

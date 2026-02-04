@@ -345,8 +345,9 @@ class Run3dVertexModel(Container):
             return
 
         try:
+            self._input_image_dims = label_data.shape
             # Save image to viewer
-            _add_surface_layer(self._viewer, self.v_model)
+            _add_surface_layer(self._viewer, self.v_model, input_image_dims=self._input_image_dims)
             print("Image layer loaded into the model.")
 
         except Exception as e:  # noqa: BLE001
@@ -380,7 +381,7 @@ class Run3dVertexModel(Container):
         self.v_model.iterate_over_time()
 
         # Save image to viewer
-        _add_surface_layer(self._viewer, self.v_model)
+        _add_surface_layer(self._viewer, self.v_model, input_image_dims=self._input_image_dims)
 
 
     def _display_advanced_params(self):
