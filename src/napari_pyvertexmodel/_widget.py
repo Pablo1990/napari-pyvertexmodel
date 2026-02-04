@@ -5,17 +5,17 @@ from typing import TYPE_CHECKING
 import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from napari_pyvertexmodel.utils import _add_surface_layer
-from src import PROJECT_DIRECTORY
-from src.pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
+from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
-from src.pyVertexModel.util.utils import load_state
+from pyVertexModel.util.utils import load_state
 
 if TYPE_CHECKING:
     import napari
 
 # Default simulation option for pyVertexModel
 DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
+PROJECT_DIRECTORY = Path(__file__).parent.parent.resolve()
 
 # magicgui `Container`
 class Run3dVertexModel(Container):
@@ -26,7 +26,7 @@ class Run3dVertexModel(Container):
 
         # Image layer selection
         self._image_layer_combo = create_widget(
-            label="Input Labels", annotation="napari.layers.Labels"
+            label="Input Labels", annotation="napari.layers.Image"
         )
         # Add number of cells
         self._tissue_number_of_cells_slider = create_widget(
@@ -323,21 +323,28 @@ class Run3dVertexModel(Container):
             )
 
             # Set model name and temporary folder
-            self.v_model.set.initial_filename_state = os.path.join(PROJECT_DIRECTORY, 'Temp/', image_layer.name)
             self.v_model.set.model_name = image_layer.name
             print(f"Loading labels from layer: {image_layer.name}")
             self.v_model.set.OutputFolder = None
             self.v_model.set.export_images = False  # Disable image export
-            self.v_model.create_temporary_folder()
+            tempdir = self.v_model.create_temporary_folder()
+            self.v_model.set.initial_filename_state = os.path.join(tempdir, image_layer.name)
 
             # Set number of cells and tissue height
-            self.v_model.set.NumberOfCells = self._tissue_number_of_cells_slider.value
+            self.v_model.set.TotalCells = self._tissue_number_of_cells_slider.value
             self.v_model.set.CellHeight = self._tissue_height_slider.value
 
             # Initialize model
             self.v_model.initialize(label_data)
             print("Labels loaded successfully.")
+        except Exception as e:  # noqa: BLE001
+            print(f"An error occurred while loading the labels: {e}")
+            # Print the stack trace for debugging
+            import traceback
+            traceback.print_exc()
+            return
 
+        try:
             # Save image to viewer
             _add_surface_layer(self._viewer, self.v_model)
             print("Image layer loaded into the model.")
