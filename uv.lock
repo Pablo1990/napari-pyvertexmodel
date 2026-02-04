@@ -1920,7 +1920,6 @@ dependencies = [
     { name = "qtpy" },
     { name = "scikit-image", version = "0.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-image", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "seaborn" },
 ]
 
 [package.optional-dependencies]
@@ -1945,7 +1944,6 @@ requires-dist = [
     { name = "pyvertexmodel" },
     { name = "qtpy" },
     { name = "scikit-image" },
-    { name = "seaborn", specifier = ">=0.13.2" },
 ]
 provides-extras = ["all"]
 
@@ -3065,7 +3063,7 @@ wheels = [
 
 [[package]]
 name = "pyvertexmodel"
-version = "1.0.4"
+version = "1.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cython" },
@@ -3084,9 +3082,10 @@ dependencies = [
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "seaborn" },
     { name = "vtk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/90/10/fc3922ca0460733a23ee781e3fc243f7bb9316dcee52165cff71fd97f06e/pyvertexmodel-1.0.4.tar.gz", hash = "sha256:0b74964951b5aa93d101360c9c0bd1d41ba2470a158b638af993c401b4d3a03c", size = 23024876, upload-time = "2026-01-29T12:44:30.045Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/e5/7c0ab843d7fc8df203e6fed7f6cf000e14e98eb6a7f23b08733fc59b7ddd/pyvertexmodel-1.0.5.tar.gz", hash = "sha256:1b673d21889fbde581cbc3859ddd96297608408a53dd006359301977b5b20223", size = 23026593, upload-time = "2026-02-02T15:29:37.717Z" }
 
 [[package]]
 name = "pyvista"
