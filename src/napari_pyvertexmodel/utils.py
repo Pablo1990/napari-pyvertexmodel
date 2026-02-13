@@ -6,7 +6,9 @@ import numpy as np
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
 
-def _add_surface_layer(viewer, v_model, input_image_dims=None, add_time_point=False):
+def _add_surface_layer(
+    viewer, v_model, input_image_dims=None, add_time_point=False
+):
     """
     Add surface layer to napari viewer.
     Batches all cells into a single layer for better performance.
@@ -19,7 +21,9 @@ def _add_surface_layer(viewer, v_model, input_image_dims=None, add_time_point=Fa
         The vertex model containing cells to visualize
     """
     # Batch all cells into a single layer for better performance
-    merged_faces, merged_scalars, merged_vertices = _get_mesh(v_model, input_image_dims)
+    merged_faces, merged_scalars, merged_vertices = _get_mesh(
+        v_model, input_image_dims
+    )
 
     # Only create/update layer if we have data with vertices
     if merged_vertices.shape[0] > 0:
@@ -56,7 +60,9 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
     offset_indices = 0
     for _cell_id, c_cell in enumerate(v_model.geo.Cells):
         if c_cell.AliveStatus is not None:
-            _, t_faces, t_scalars, t_vertices = _create_surface_data(c_cell, v_model, offset_indices=offset_indices)
+            _, t_faces, t_scalars, t_vertices = _create_surface_data(
+                c_cell, v_model, offset_indices=offset_indices
+            )
 
             all_vertices.append(t_vertices)
             all_faces.append(t_faces)
@@ -88,14 +94,18 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
         scale_factors = np.ones_like(vertices_bbox_dims)
         nonzero = vertices_bbox_dims != 0
         if np.any(nonzero):
-            scale_factors[nonzero] = input_dims[nonzero] / vertices_bbox_dims[nonzero]
+            scale_factors[nonzero] = (
+                input_dims[nonzero] / vertices_bbox_dims[nonzero]
+            )
             # Apply scaling to X,Y columns (only if we have non-zero dimensions)
             merged_vertices *= np.mean(scale_factors[nonzero])
 
     return merged_faces, merged_scalars, merged_vertices
 
 
-def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, Any, Any]:
+def _create_surface_data(
+    c_cell, v_model, offset_indices=0
+) -> tuple[str, Any, Any, Any]:
     """
     Create surface data for a cell
     :param c_cell:
@@ -106,7 +116,9 @@ def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, A
     layer_name_cell = f"{v_model.set.model_name}_cell_{c_cell.ID}"
     vtk_poly = c_cell.create_vtk()
     t_vertices = vtk_to_numpy(vtk_poly.GetPoints().GetData())
-    t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[:, 1:4]
+    t_faces = vtk_to_numpy(vtk_poly.GetPolys().GetData()).reshape(-1, 4)[
+        :, 1:4
+    ]
     t_scalars = vtk_to_numpy(vtk_poly.GetCellData().GetScalars())
 
     # Check t_scalars length matches number of vertices
@@ -123,4 +135,3 @@ def _create_surface_data(c_cell, v_model, offset_indices=0) -> tuple[str, Any, A
 
     # Return the layer name and the surface data
     return layer_name_cell, t_faces, t_scalars, t_vertices
-
