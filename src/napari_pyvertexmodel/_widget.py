@@ -1,10 +1,13 @@
+import ctypes
 import os
+import threading
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
+from napari.qt.threading import thread_worker
 from napari_pyvertexmodel.utils import _add_surface_layer
 from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
@@ -197,8 +200,13 @@ class Run3dVertexModel(Container):
         # Add button to run Vertex Model
         self._run_button = PushButton(text="Run it!")
 
+        # Add button to cancel a running simulation (disabled until simulation starts)
+        self._cancel_button = PushButton(text="Cancel")
+        self._cancel_button.enabled = False
+
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
+        self._cancel_button.clicked.connect(self._cancel_model)
         self._load_simulation_button.clicked.connect(self._load_simulation)
         self._image_layer_load_button.clicked.connect(self._image_layer_load)
         self._show_advanced_params_checkbox.clicked.connect(self._display_advanced_params)
@@ -222,12 +230,17 @@ class Run3dVertexModel(Container):
                 self._load_simulation_input,
                 self._load_simulation_button,
                 self._run_button,
+                self._cancel_button,
             ]
         )
 
         # Extended attributes
         self.v_model = None
         self._temp_dir = None  # Store temp directory reference for clean-up
+        self._worker = None  # Background simulation worker
+        self._simulation_thread_id = None  # Thread ID for cancellation
+        self._simulation_lock = threading.Lock()  # Protects _simulation_thread_id
+        self._cancelled = False  # Whether cancellation was requested
     
     def __del__(self):
         """Clean-up temporary directory on widget destruction."""
@@ -361,7 +374,11 @@ class Run3dVertexModel(Container):
         if self.v_model is None:
             print("Error: No model loaded. Please load a simulation or labels first.")
             return
-        
+
+        if self._worker is not None:
+            print("Simulation already running.")
+            return
+
         self.v_model.t = 0  # Reset time
 
         # Update model parameters from sliders
@@ -370,15 +387,64 @@ class Run3dVertexModel(Container):
         # Create temporary folder for output
         self._create_temp_folder()
 
-        # Run the simulation
-        self.v_model.iterate_over_time()
+        self._cancelled = False
+        self._simulation_thread_id = None
+        self._run_button.enabled = False
+        self._cancel_button.enabled = True
 
-        # Save image to viewer
-        _add_surface_layer(
-            self._viewer,
-            self.v_model,
-            input_image_dims=getattr(self, "_input_image_dims", None),
-        )
+        @thread_worker
+        def _run_simulation():
+            with self._simulation_lock:
+                self._simulation_thread_id = threading.current_thread().ident
+            try:
+                self.v_model.iterate_over_time()
+            except SystemExit:
+                print("Simulation cancelled.")
+
+        worker = _run_simulation()
+        worker.returned.connect(self._on_simulation_done)
+        worker.errored.connect(self._on_simulation_error)
+        worker.finished.connect(self._on_simulation_finished)
+        self._worker = worker
+        worker.start()
+
+    def _on_simulation_done(self, result=None):
+        """Called on the main thread when the simulation completes successfully."""
+        if not self._cancelled:
+            _add_surface_layer(
+                self._viewer,
+                self.v_model,
+                input_image_dims=getattr(self, "_input_image_dims", None),
+            )
+
+    def _on_simulation_error(self, exc):
+        """Called on the main thread when the simulation raises an unhandled exception."""
+        print(f"An error occurred during the simulation: {exc}")
+
+    def _on_simulation_finished(self):
+        """Called on the main thread when the simulation worker finishes (success or error)."""
+        self._run_button.enabled = True
+        self._cancel_button.enabled = False
+        self._worker = None
+        self._simulation_thread_id = None
+
+    def _cancel_model(self):
+        """Request cancellation of the currently running simulation.
+
+        Uses ``ctypes.PyThreadState_SetAsyncExc`` to inject a ``SystemExit``
+        exception into the simulation thread, causing ``iterate_over_time()``
+        to stop at the next safe point. This is the most practical approach
+        given that pyVertexModel does not expose a cooperative cancellation API.
+        """
+        with self._simulation_lock:
+            thread_id = self._simulation_thread_id
+        if thread_id is not None:
+            self._cancelled = True
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_ulong(thread_id),
+                ctypes.py_object(SystemExit),
+            )
+            print("Cancellation requested. The simulation will stop shortly.")
 
 
     def _display_advanced_params(self):

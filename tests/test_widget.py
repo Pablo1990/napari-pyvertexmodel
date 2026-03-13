@@ -54,6 +54,7 @@ def test_widget_has_required_widgets(make_napari_viewer, qtbot):
     assert widget._lambda_volume_slider is not None
     assert widget._run_button is not None
     assert widget._load_simulation_button is not None
+    assert widget._cancel_button is not None
 
 
 def test_widget_slider_defaults(make_napari_viewer, qtbot):
@@ -384,5 +385,141 @@ def test_update_sliders_from_model_with_advanced_params(make_napari_viewer, qtbo
     assert widget._remodelling_checkbox.value == True
     assert widget._ablation_checkbox.value == True
     assert widget._cells_to_ablate_slider.value == 3
+
+
+def test_cancel_button_initial_state(make_napari_viewer, qtbot):
+    """Test that cancel button exists and is initially disabled."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert widget._cancel_button is not None
+    assert widget._cancel_button.enabled is False
+
+
+def test_cancel_button_in_container(make_napari_viewer, qtbot):
+    """Test that cancel button is in the widget container."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert widget._cancel_button in widget
+
+
+def test_cancel_model_no_simulation(make_napari_viewer, qtbot):
+    """Test that calling _cancel_model when no simulation is running does nothing."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    # Should not raise any error
+    widget._cancel_model()
+
+    # State should be unchanged
+    assert widget._cancelled is False
+
+
+def test_cancel_model_sets_cancelled_flag(make_napari_viewer, qtbot):
+    """Test that _cancel_model sets the _cancelled flag when a thread ID is present."""
+    from unittest.mock import patch
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    # Simulate a running simulation by setting a (fake) thread ID
+    widget._simulation_thread_id = 99999
+
+    with patch("napari_pyvertexmodel._widget.ctypes") as mock_ctypes:
+        mock_ctypes.c_ulong = lambda x: x
+        mock_ctypes.py_object = lambda x: x
+        mock_ctypes.pythonapi = mock_ctypes.pythonapi  # keep reference
+        widget._cancel_model()
+
+    assert widget._cancelled is True
+
+
+def test_run_model_already_running(make_napari_viewer, qtbot, capsys):
+    """Test that starting a second run while one is active prints a message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = Mock()
+    mock_model.set = Mock()
+    mock_model.create_temporary_folder = Mock(return_value="/tmp")
+    widget.v_model = mock_model
+
+    # Simulate a worker already running
+    widget._worker = Mock()
+
+    widget._run_model()
+
+    captured = capsys.readouterr()
+    assert "already running" in captured.out
+
+
+def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
+    """Test that _on_simulation_finished restores button states."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    # Simulate in-progress state
+    widget._run_button.enabled = False
+    widget._cancel_button.enabled = True
+    widget._worker = Mock()
+    widget._simulation_thread_id = 12345
+
+    widget._on_simulation_finished()
+
+    assert widget._run_button.enabled is True
+    assert widget._cancel_button.enabled is False
+    assert widget._worker is None
+    assert widget._simulation_thread_id is None
+
+
+def test_on_simulation_error_prints_message(make_napari_viewer, qtbot, capsys):
+    """Test that _on_simulation_error prints an error message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._on_simulation_error(RuntimeError("test error"))
+
+    captured = capsys.readouterr()
+    assert "test error" in captured.out
+
+
+def test_on_simulation_done_skips_layer_when_cancelled(make_napari_viewer, qtbot):
+    """Test that _on_simulation_done does not update layers when cancelled."""
+    from unittest.mock import patch
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._cancelled = True
+    widget.v_model = Mock()
+
+    with patch("napari_pyvertexmodel._widget._add_surface_layer") as mock_add:
+        widget._on_simulation_done()
+
+    mock_add.assert_not_called()
+
 
 
