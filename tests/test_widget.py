@@ -522,4 +522,64 @@ def test_on_simulation_done_skips_layer_when_cancelled(make_napari_viewer, qtbot
     mock_add.assert_not_called()
 
 
+def test_on_simulation_done_when_not_cancelled(make_napari_viewer, qtbot):
+    """Test that _on_simulation_done calls _add_surface_layer when not cancelled."""
+    from unittest.mock import Mock, patch
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._cancelled = False
+    widget.v_model = Mock()
+
+    with patch("napari_pyvertexmodel._widget._add_surface_layer") as mock_add:
+        widget._on_simulation_done()
+
+    mock_add.assert_called_once_with(
+        viewer,
+        widget.v_model,
+        input_image_dims=None,
+    )
+
+
+def test_run_model_starts_worker(make_napari_viewer, qtbot):
+    """Test that _run_model sets up and starts a background thread worker."""
+    from unittest.mock import Mock, MagicMock, patch
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = Mock()
+    mock_model.set = Mock()
+    mock_model.create_temporary_folder = Mock(return_value="/tmp/mock")
+    widget.v_model = mock_model
+
+    mock_worker = MagicMock()
+
+    # Replace thread_worker with a version that executes the wrapped function
+    # immediately (to cover the inner function body) and returns mock_worker.
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            func()  # execute _run_simulation to cover its lines
+            return mock_worker
+        return creator
+
+    with patch("napari_pyvertexmodel._widget.thread_worker", synchronous_thread_worker):
+        widget._run_model()
+
+    # Run button should be disabled, cancel button enabled
+    assert widget._run_button.enabled is False
+    assert widget._cancel_button.enabled is True
+    # Worker should be stored and started
+    assert widget._worker is mock_worker
+    mock_worker.returned.connect.assert_called_once_with(widget._on_simulation_done)
+    mock_worker.errored.connect.assert_called_once_with(widget._on_simulation_error)
+    mock_worker.finished.connect.assert_called_once_with(widget._on_simulation_finished)
+    mock_worker.start.assert_called_once()
+
+
 
