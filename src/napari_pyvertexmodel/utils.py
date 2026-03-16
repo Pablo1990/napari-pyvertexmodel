@@ -76,19 +76,30 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
     merged_faces = np.concatenate(all_faces, axis=0)
     merged_scalars = np.concatenate(all_scalars, axis=0)
 
+    # Swap columns to convert from VTK column order (x=0, y=1, z=2) to
+    # napari column order (z=0, y=1, x=2).  VTK uses standard right-handed
+    # (x, y, z) ordering, while napari surfaces use (z, y, x) for 3D spatial
+    # data.  This reordering MUST happen before the scaling step below so that
+    # the lateral scale factors (derived from the image plane) are applied to
+    # the correct axes (napari columns 1 and 2) rather than to the tissue-
+    # height axis (napari column 0).
+    merged_vertices = merged_vertices[:, [2, 1, 0]]
+
     # Scale vertices to match input image dimensions if provided
     if input_image_dims is not None:
-        # Use bounding box in X,Y to scale vertices
-        vertices_x_min = np.min(merged_vertices[:, 0])
-        vertices_x_max = np.max(merged_vertices[:, 0])
+        # Use bounding box in Y, X (napari axes 1 and 2) to scale vertices
         vertices_y_min = np.min(merged_vertices[:, 1])
         vertices_y_max = np.max(merged_vertices[:, 1])
+        vertices_x_min = np.min(merged_vertices[:, 2])
+        vertices_x_max = np.max(merged_vertices[:, 2])
         vertices_bbox_dims = np.array(
-            [vertices_x_max - vertices_x_min, vertices_y_max - vertices_y_min],
+            [vertices_y_max - vertices_y_min, vertices_x_max - vertices_x_min],
             dtype=float,
         )
 
-        input_dims = np.array(input_image_dims, dtype=float)
+        # Use the last two dimensions (rows, cols) to support both 2-D and
+        # 3-D input images regardless of how many z-slices they have.
+        input_dims = np.array(input_image_dims[-2:], dtype=float)
 
         # Avoid division by zero: skip scaling on axes with zero bbox
         scale_factors = np.ones_like(vertices_bbox_dims)
@@ -97,8 +108,13 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
             scale_factors[nonzero] = (
                 input_dims[nonzero] / vertices_bbox_dims[nonzero]
             )
-            # Apply scaling to X,Y columns (only if we have non-zero dimensions)
-            merged_vertices *= np.mean(scale_factors[nonzero])
+            # Apply scaling only to the lateral dimensions (napari y and x,
+            # columns 1 and 2). The tissue-height axis (napari z, column 0)
+            # must NOT be rescaled, otherwise it grows by the same large
+            # factor as the image plane and produces an enormous column.
+            scale = np.mean(scale_factors[nonzero])
+            merged_vertices[:, 1] *= scale
+            merged_vertices[:, 2] *= scale
 
     return merged_faces, merged_scalars, merged_vertices
 
