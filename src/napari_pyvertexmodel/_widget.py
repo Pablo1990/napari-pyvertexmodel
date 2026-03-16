@@ -5,14 +5,16 @@ import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import napari.layers
 import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from napari.qt.threading import thread_worker
-from napari_pyvertexmodel.utils import _add_surface_layer
 from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
 from pyVertexModel.util.utils import load_state
+
+from napari_pyvertexmodel.utils import _add_surface_layer
 
 if TYPE_CHECKING:
     import napari
@@ -28,9 +30,10 @@ class Run3dVertexModel(Container):
         self._viewer = viewer
         self._viewer.dims.ndisplay = 3  # Set viewer to 3D display
 
-        # Image layer selection
+        # Image/Labels layer selection (accepts both Image and Labels layers)
         self._image_layer_combo = create_widget(
-            label="Input Labels", annotation="napari.layers.Image"
+            label="Input Labels",
+            annotation=napari.layers.Layer,
         )
         # Add number of cells
         self._tissue_number_of_cells_slider = create_widget(
@@ -241,7 +244,7 @@ class Run3dVertexModel(Container):
         self._simulation_thread_id = None  # Thread ID for cancellation
         self._simulation_lock = threading.Lock()  # Protects _simulation_thread_id
         self._cancelled = False  # Whether cancellation was requested
-    
+
     def __del__(self):
         """Clean-up temporary directory on widget destruction."""
         if self._temp_dir is not None:
@@ -325,8 +328,19 @@ class Run3dVertexModel(Container):
                 print("Error: No labels layer selected.")
                 return
 
-            # Get the label data from the selected layer
-            label_data = image_layer.data
+            # Get the label data from the selected layer.
+            # For a Labels layer, convert to a binary image (non-zero → 1)
+            # so that the simulation receives a standard segmented image.
+            if isinstance(image_layer, napari.layers.Labels):
+                label_data = image_layer.data == 0
+            elif isinstance(image_layer, napari.layers.Image):
+                # Check if the image has a 0 background or background of 1
+                label_data = image_layer.data
+            else:
+                print(
+                    "Error: Selected layer must be an Image or Labels layer."
+                )
+                return
 
             # Create Vertex Model with default parameters
             # Note: This should be updated to use label_data once the
