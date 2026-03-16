@@ -9,6 +9,7 @@ import napari.layers
 import numpy as np
 from magicgui.widgets import CheckBox, Container, PushButton, create_widget
 from napari.qt.threading import thread_worker
+from napari.utils import progress
 from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
@@ -20,8 +21,9 @@ if TYPE_CHECKING:
     import napari
 
 # Default simulation option for pyVertexModel
-DEFAULT_VERTEX_MODEL_OPTION = 'wing_disc_equilibrium'
+DEFAULT_VERTEX_MODEL_OPTION = "wing_disc_equilibrium"
 PROJECT_DIRECTORY = Path(__file__).parent.parent.resolve()
+
 
 # magicgui `Container`
 class Run3dVertexModel(Container):
@@ -58,9 +60,7 @@ class Run3dVertexModel(Container):
         # ----- Sliders with mechanical parameters -----
         # Lambda Volume slider
         self._lambda_volume_slider = create_widget(
-            label=r'$\lambda_V$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$\lambda_V$", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_volume_slider.min = 0
         self._lambda_volume_slider.max = 10
@@ -69,9 +69,7 @@ class Run3dVertexModel(Container):
 
         # Volume reference slider
         self._volume_reference_slider = create_widget(
-            label=r'$V_{0}$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$V_{0}$", annotation=float, widget_type="FloatSlider"
         )
         self._volume_reference_slider.min = 0
         self._volume_reference_slider.max = 10
@@ -80,9 +78,9 @@ class Run3dVertexModel(Container):
 
         # Lambda Surface top slider
         self._lambda_surface_top_slider = create_widget(
-            label=r'$\lambda_{S1}$',
+            label=r"$\lambda_{S1}$",
             annotation=float,
-            widget_type="FloatSlider"
+            widget_type="FloatSlider",
         )
         self._lambda_surface_top_slider.min = 0
         self._lambda_surface_top_slider.max = 10
@@ -91,9 +89,9 @@ class Run3dVertexModel(Container):
 
         # Lambda Surface bottom slider
         self._lambda_surface_bottom_slider = create_widget(
-            label=r'$\lambda_{S3}$',
+            label=r"$\lambda_{S3}$",
             annotation=float,
-            widget_type="FloatSlider"
+            widget_type="FloatSlider",
         )
         self._lambda_surface_bottom_slider.min = 0
         self._lambda_surface_bottom_slider.max = 10
@@ -102,9 +100,9 @@ class Run3dVertexModel(Container):
 
         # Lambda Surface lateral slider
         self._lambda_surface_lateral_slider = create_widget(
-            label=r'$\lambda_{S2}$',
+            label=r"$\lambda_{S2}$",
             annotation=float,
-            widget_type="FloatSlider"
+            widget_type="FloatSlider",
         )
         self._lambda_surface_lateral_slider.min = 0
         self._lambda_surface_lateral_slider.max = 10
@@ -113,9 +111,7 @@ class Run3dVertexModel(Container):
 
         # Surface Area reference slider
         self._surface_area_reference_slider = create_widget(
-            label=r'$A_{0}$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$A_{0}$", annotation=float, widget_type="FloatSlider"
         )
         self._surface_area_reference_slider.min = 0
         self._surface_area_reference_slider.max = 10
@@ -124,9 +120,9 @@ class Run3dVertexModel(Container):
 
         # K substrate slider
         self._k_substrate_slider = create_widget(
-            label=r'$k_{Substrate}$',
+            label=r"$k_{Substrate}$",
             annotation=float,
-            widget_type="FloatSlider"
+            widget_type="FloatSlider",
         )
         self._k_substrate_slider.min = 0
         self._k_substrate_slider.max = 1
@@ -135,9 +131,7 @@ class Run3dVertexModel(Container):
 
         # T end slider
         self._t_end_slider = create_widget(
-            label=r'$t_{end}$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$t_{end}$", annotation=float, widget_type="FloatSlider"
         )
         self._t_end_slider.min = 0
         self._t_end_slider.max = 30
@@ -152,9 +146,7 @@ class Run3dVertexModel(Container):
 
         # Energy Barrier (Lambda R) slider
         self._lambda_r_slider = create_widget(
-            label=r'$\lambda_{R}$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$\lambda_{R}$", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_r_slider.min = 0
         self._lambda_r_slider.max = 1e-4
@@ -163,9 +155,7 @@ class Run3dVertexModel(Container):
 
         # Viscosity slider
         self._viscosity_slider = create_widget(
-            label=r'$\nu$',
-            annotation=float,
-            widget_type="FloatSlider"
+            label=r"$\nu$", annotation=float, widget_type="FloatSlider"
         )
         self._viscosity_slider.min = 0
         self._viscosity_slider.max = 1
@@ -178,15 +168,11 @@ class Run3dVertexModel(Container):
         )
 
         # Ablation checkbox
-        self._ablation_checkbox = CheckBox(
-            text="Enable Ablation", value=False
-        )
+        self._ablation_checkbox = CheckBox(text="Enable Ablation", value=False)
 
         # Cells to ablate slider
         self._cells_to_ablate_slider = create_widget(
-            label=r'Cells to Ablate',
-            annotation=int,
-            widget_type="IntSlider"
+            label=r"Cells to Ablate", annotation=int, widget_type="IntSlider"
         )
         self._cells_to_ablate_slider.min = 0
         self._cells_to_ablate_slider.max = 10
@@ -212,7 +198,9 @@ class Run3dVertexModel(Container):
         self._cancel_button.clicked.connect(self._cancel_model)
         self._load_simulation_button.clicked.connect(self._load_simulation)
         self._image_layer_load_button.clicked.connect(self._image_layer_load)
-        self._show_advanced_params_checkbox.clicked.connect(self._display_advanced_params)
+        self._show_advanced_params_checkbox.clicked.connect(
+            self._display_advanced_params
+        )
 
         # append into/extend the container with your widgets
         self.extend(
@@ -241,8 +229,12 @@ class Run3dVertexModel(Container):
         self.v_model = None
         self._temp_dir = None  # Store temp directory reference for clean-up
         self._worker = None  # Background simulation worker
+        self._load_worker = None  # Background load-labels worker
+        self._progress_bar = None  # Progress bar for long-running operations
         self._simulation_thread_id = None  # Thread ID for cancellation
-        self._simulation_lock = threading.Lock()  # Protects _simulation_thread_id
+        self._simulation_lock = (
+            threading.Lock()
+        )  # Protects _simulation_thread_id
         self._cancelled = False  # Whether cancellation was requested
 
     def __del__(self):
@@ -261,26 +253,30 @@ class Run3dVertexModel(Container):
 
             pkl_file = str(Path(pkl_file))
 
-            if not pkl_file.endswith('.pkl'):
+            if not pkl_file.endswith(".pkl"):
                 print("Please select a valid .pkl file.")
                 return
 
-            # Load the Vertex Model from the specified file
-            self.v_model = VertexModelVoronoiFromTimeImage(
-                create_output_folder=False,
-                set_option=DEFAULT_VERTEX_MODEL_OPTION,
-            )
-            load_state(self.v_model, pkl_file)
+            with progress(total=3, desc="Loading simulation") as pbr:
+                pbr.set_description("Initializing model")
+                self.v_model = VertexModelVoronoiFromTimeImage(
+                    create_output_folder=False,
+                    set_option=DEFAULT_VERTEX_MODEL_OPTION,
+                )
+                pbr.update(1)
 
-            self.v_model.set.OutputFolder = None  # Disable output folder
-            self.v_model.set.export_images = False  # Disable image export
+                pbr.set_description("Loading simulation state")
+                load_state(self.v_model, pkl_file)
+                self.v_model.set.OutputFolder = None  # Disable output folder
+                self.v_model.set.export_images = False  # Disable image export
+                self._update_sliders_from_model()
+                pbr.update(1)
 
-            # Update sliders with loaded model parameters
-            self._update_sliders_from_model()
+                pbr.set_description("Updating viewer")
+                _add_surface_layer(self._viewer, self.v_model)
+                pbr.update(1)
 
             print("Simulation loaded successfully.")
-            # Save image to viewer
-            _add_surface_layer(self._viewer, self.v_model)
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the simulation: {e}")
 
@@ -301,7 +297,9 @@ class Run3dVertexModel(Container):
             self._viscosity_slider.value = self.v_model.set.nu
             self._remodelling_checkbox.value = self.v_model.set.RemodelCells
             self._ablation_checkbox.value = self.v_model.set.AblateCells
-            self._cells_to_ablate_slider.value = len(self.v_model.geo.cells_to_ablate)
+            self._cells_to_ablate_slider.value = len(
+                self.v_model.geo.cells_to_ablate
+            )
 
     def _update_model_from_sliders(self):
         self.v_model.set.lambdaV = self._lambda_volume_slider.value
@@ -318,67 +316,113 @@ class Run3dVertexModel(Container):
             self.v_model.set.nu = self._viscosity_slider.value
             self.v_model.set.RemodelCells = self._remodelling_checkbox.value
             self.v_model.set.AblateCells = self._ablation_checkbox.value
-            self.v_model.set.CellsToAblate = np.arange(self._cells_to_ablate_slider.value)
-
-    def _image_layer_load(self):
-        try:
-            # Load the image layer from the viewer
-            image_layer = self._image_layer_combo.value
-            if image_layer is None:
-                print("Error: No labels layer selected.")
-                return
-
-            # Get the label data from the selected layer.
-            # For a Labels layer, convert to a binary image (non-zero → 1)
-            # so that the simulation receives a standard segmented image.
-            if isinstance(image_layer, napari.layers.Labels):
-                label_data = image_layer.data == 0
-            elif isinstance(image_layer, napari.layers.Image):
-                # Check if the image has a 0 background or background of 1
-                label_data = image_layer.data
-            else:
-                print(
-                    "Error: Selected layer must be an Image or Labels layer."
-                )
-                return
-
-            # Create Vertex Model with default parameters
-            # Note: This should be updated to use label_data once the
-            # VertexModelVoronoiFromTimeImage class supports it
-            self.v_model = VertexModelVoronoiFromTimeImage(
-                create_output_folder=False,
-                set_option=DEFAULT_VERTEX_MODEL_OPTION
+            self.v_model.set.CellsToAblate = np.arange(
+                self._cells_to_ablate_slider.value
             )
 
-            # Set model name and temporary folder
-            self.v_model.set.model_name = image_layer.name
-            print(f"Loading labels from layer: {image_layer.name}")
-            self.v_model.set.OutputFolder = None
-            self.v_model.set.export_images = False  # Disable image export
-            tempdir = self.v_model.create_temporary_folder()
-            self.v_model.set.initial_filename_state = os.path.join(tempdir, image_layer.name)
-
-            # Set number of cells and tissue height
-            self.v_model.set.TotalCells = self._tissue_number_of_cells_slider.value
-            self.v_model.set.CellHeight = self._tissue_height_slider.value
-
-            # Initialize model
-            self.v_model.initialize(label_data)
-            print("Labels loaded successfully.")
-        except Exception as e:  # noqa: BLE001
-            print(f"An error occurred while loading the labels: {e}")
-            traceback.print_exc()
+    def _image_layer_load(self):
+        """Start loading labels in a background thread (cancellable)."""
+        image_layer = self._image_layer_combo.value
+        if image_layer is None:
+            print("Error: No labels layer selected.")
             return
+
+        # Get the label data from the selected layer.
+        # For a Labels layer, convert to a binary image (non-zero → 1)
+        # so that the simulation receives a standard segmented image.
+        if isinstance(image_layer, napari.layers.Labels):
+            label_data = image_layer.data == 0
+        elif isinstance(image_layer, napari.layers.Image):
+            # Check if the image has a 0 background or background of 1
+            label_data = image_layer.data
+        else:
+            print("Error: Selected layer must be an Image or Labels layer.")
+            return
+
+        if self._load_worker is not None:
+            print("Load labels already running.")
+            return
+
+        # Snapshot mutable slider values before entering the thread
+        layer_name = image_layer.name
+        total_cells = self._tissue_number_of_cells_slider.value
+        cell_height = self._tissue_height_slider.value
+
+        self._cancelled = False
+        self._simulation_thread_id = None
+        self._image_layer_load_button.enabled = False
+        self._cancel_button.enabled = True
+
+        @thread_worker
+        def _run_load():
+            with self._simulation_lock:
+                self._simulation_thread_id = threading.current_thread().ident
+            try:
+                with progress(total=2, desc="Loading labels") as pbr:
+                    pbr.set_description("Initializing model")
+                    local_model = VertexModelVoronoiFromTimeImage(
+                        create_output_folder=False,
+                        set_option=DEFAULT_VERTEX_MODEL_OPTION,
+                    )
+                    local_model.set.model_name = layer_name
+                    local_model.set.OutputFolder = None
+                    local_model.set.export_images = False
+                    tempdir = local_model.create_temporary_folder()
+                    local_model.set.initial_filename_state = os.path.join(
+                        tempdir, layer_name
+                    )
+                    local_model.set.TotalCells = total_cells
+                    local_model.set.CellHeight = cell_height
+                    pbr.update(1)
+
+                    pbr.set_description("Processing label data")
+                    local_model.initialize(label_data)
+                    pbr.update(1)
+            except SystemExit:
+                print("Load labels cancelled.")
+                return None, None
+
+            return local_model, label_data
+
+        worker = _run_load()
+        worker.returned.connect(self._on_load_done)
+        worker.errored.connect(self._on_load_error)
+        worker.finished.connect(self._on_load_finished)
+        self._load_worker = worker
+        worker.start()
+
+    def _on_load_done(self, result):
+        """Called on the main thread when labels loading completes."""
+        local_model, label_data = result
+        if local_model is None or self._cancelled:
+            return
+
+        self.v_model = local_model
+        print("Labels loaded successfully.")
 
         try:
             self._input_image_dims = label_data.shape
-            # Save image to viewer
-            _add_surface_layer(self._viewer, self.v_model, input_image_dims=self._input_image_dims)
+            _add_surface_layer(
+                self._viewer,
+                self.v_model,
+                input_image_dims=self._input_image_dims,
+            )
             print("Image layer loaded into the model.")
-
         except Exception as e:  # noqa: BLE001
             print(f"An error occurred while loading the image layer: {e}")
             traceback.print_exc()
+
+    def _on_load_error(self, exc):
+        """Called on the main thread when labels loading raises an unhandled exception."""
+        print(f"An error occurred while loading the labels: {exc}")
+        traceback.print_exc()
+
+    def _on_load_finished(self):
+        """Called on the main thread when the load worker finishes (success or error)."""
+        self._image_layer_load_button.enabled = True
+        self._cancel_button.enabled = False
+        self._load_worker = None
+        self._simulation_thread_id = None
 
     def _create_temp_folder(self):
         # Create new temp directory and store reference
@@ -386,7 +430,9 @@ class Run3dVertexModel(Container):
 
     def _run_model(self):
         if self.v_model is None:
-            print("Error: No model loaded. Please load a simulation or labels first.")
+            print(
+                "Error: No model loaded. Please load a simulation or labels first."
+            )
             return
 
         if self._worker is not None:
@@ -405,6 +451,7 @@ class Run3dVertexModel(Container):
         self._simulation_thread_id = None
         self._run_button.enabled = False
         self._cancel_button.enabled = True
+        self._progress_bar = progress(total=0, desc="Running simulation")
 
         @thread_worker
         def _run_simulation():
@@ -441,6 +488,9 @@ class Run3dVertexModel(Container):
         self._cancel_button.enabled = False
         self._worker = None
         self._simulation_thread_id = None
+        if self._progress_bar is not None:
+            self._progress_bar.close()
+            self._progress_bar = None
 
     def _cancel_model(self):
         """Request cancellation of the currently running simulation.
@@ -459,7 +509,6 @@ class Run3dVertexModel(Container):
                 ctypes.py_object(SystemExit),
             )
             print("Cancellation requested. The simulation will stop shortly.")
-
 
     def _display_advanced_params(self):
         if self._show_advanced_params_checkbox.value:
@@ -484,7 +533,3 @@ class Run3dVertexModel(Container):
             ]:
                 if widget in self:
                     self.remove(widget)
-
-
-
-

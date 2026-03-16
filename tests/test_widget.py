@@ -1,4 +1,5 @@
 """Tests for widget module."""
+
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -8,6 +9,7 @@ import pytest
 def test_widget_module_imports():
     """Test that widget module can be imported."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
+
     assert Run3dVertexModel is not None
 
     # Test that important constants exist
@@ -15,7 +17,8 @@ def test_widget_module_imports():
         DEFAULT_VERTEX_MODEL_OPTION,
         PROJECT_DIRECTORY,
     )
-    assert DEFAULT_VERTEX_MODEL_OPTION == 'wing_disc_equilibrium'
+
+    assert DEFAULT_VERTEX_MODEL_OPTION == "wing_disc_equilibrium"
     assert PROJECT_DIRECTORY is not None
 
 
@@ -302,23 +305,41 @@ def test_image_layer_load_labels_converts_to_binary(make_napari_viewer, qtbot):
     mock_v_model.create_temporary_folder.return_value = "/tmp/mock"
 
     def capture_initialize(data):
-        captured_label_data['data'] = data
+        captured_label_data["data"] = data
 
     mock_v_model.initialize.side_effect = capture_initialize
 
-    with patch(
-        "napari_pyvertexmodel._widget.VertexModelVoronoiFromTimeImage",
-        return_value=mock_v_model,
-    ), patch("napari_pyvertexmodel._widget._add_surface_layer"):
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            func()  # execute the thread_worker-decorated function synchronously
+            return mock_worker
+
+        return creator
+
+    with (
+        patch(
+            "napari_pyvertexmodel._widget.thread_worker",
+            synchronous_thread_worker,
+        ),
+        patch(
+            "napari_pyvertexmodel._widget.VertexModelVoronoiFromTimeImage",
+            return_value=mock_v_model,
+        ),
+        patch("napari_pyvertexmodel._widget._add_surface_layer"),
+        patch("napari_pyvertexmodel._widget.progress"),
+    ):
         widget._image_layer_load()
 
     # initialize should have been called with a binary image
-    assert 'data' in captured_label_data
-    result = captured_label_data['data']
-    expected = (labels_data > 0).astype(np.int_)
+    assert "data" in captured_label_data
+    result = captured_label_data["data"]
+    # The code passes `image_layer.data == 0`, so True where background (label=0)
+    expected = labels_data == 0
     np.testing.assert_array_equal(result, expected)
-    # Binary: only 0 and 1 values
-    assert set(np.unique(result)).issubset({0, 1})
+    # Binary: only False/True (0/1) values
+    assert set(np.unique(result)).issubset({False, True})
 
 
 def test_image_layer_load_image_uses_data_directly(make_napari_viewer, qtbot):
@@ -342,18 +363,35 @@ def test_image_layer_load_image_uses_data_directly(make_napari_viewer, qtbot):
     mock_v_model.create_temporary_folder.return_value = "/tmp/mock"
 
     def capture_initialize(data):
-        captured_label_data['data'] = data
+        captured_label_data["data"] = data
 
     mock_v_model.initialize.side_effect = capture_initialize
 
-    with patch(
-        "napari_pyvertexmodel._widget.VertexModelVoronoiFromTimeImage",
-        return_value=mock_v_model,
-    ), patch("napari_pyvertexmodel._widget._add_surface_layer"):
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            func()
+            return mock_worker
+
+        return creator
+
+    with (
+        patch(
+            "napari_pyvertexmodel._widget.thread_worker",
+            synchronous_thread_worker,
+        ),
+        patch(
+            "napari_pyvertexmodel._widget.VertexModelVoronoiFromTimeImage",
+            return_value=mock_v_model,
+        ),
+        patch("napari_pyvertexmodel._widget._add_surface_layer"),
+        patch("napari_pyvertexmodel._widget.progress"),
+    ):
         widget._image_layer_load()
 
-    assert 'data' in captured_label_data
-    np.testing.assert_array_equal(captured_label_data['data'], image_data)
+    assert "data" in captured_label_data
+    np.testing.assert_array_equal(captured_label_data["data"], image_data)
 
 
 def test_create_temp_folder(make_napari_viewer, qtbot):
@@ -466,7 +504,9 @@ def test_update_model_with_advanced_params(make_napari_viewer, qtbot):
     assert np.array_equal(mock_model.set.CellsToAblate, np.arange(3))
 
 
-def test_update_sliders_from_model_with_advanced_params(make_napari_viewer, qtbot):
+def test_update_sliders_from_model_with_advanced_params(
+    make_napari_viewer, qtbot
+):
     """Test updating sliders with advanced parameters enabled."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
@@ -587,7 +627,7 @@ def test_run_model_already_running(make_napari_viewer, qtbot, capsys):
 
 
 def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
-    """Test that _on_simulation_finished restores button states."""
+    """Test that _on_simulation_finished restores button states and closes progress bar."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
@@ -599,6 +639,8 @@ def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
     widget._cancel_button.enabled = True
     widget._worker = Mock()
     widget._simulation_thread_id = 12345
+    mock_progress_bar = Mock()
+    widget._progress_bar = mock_progress_bar
 
     widget._on_simulation_finished()
 
@@ -606,6 +648,8 @@ def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
     assert widget._cancel_button.enabled is False
     assert widget._worker is None
     assert widget._simulation_thread_id is None
+    mock_progress_bar.close.assert_called_once()
+    assert widget._progress_bar is None
 
 
 def test_on_simulation_error_prints_message(make_napari_viewer, qtbot, capsys):
@@ -622,7 +666,9 @@ def test_on_simulation_error_prints_message(make_napari_viewer, qtbot, capsys):
     assert "test error" in captured.out
 
 
-def test_on_simulation_done_skips_layer_when_cancelled(make_napari_viewer, qtbot):
+def test_on_simulation_done_skips_layer_when_cancelled(
+    make_napari_viewer, qtbot
+):
     """Test that _on_simulation_done does not update layers when cancelled."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
@@ -685,9 +731,16 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
         def creator(*args, **kwargs):
             func()  # execute _run_simulation to cover its lines
             return mock_worker
+
         return creator
 
-    with patch("napari_pyvertexmodel._widget.thread_worker", synchronous_thread_worker):
+    with (
+        patch(
+            "napari_pyvertexmodel._widget.thread_worker",
+            synchronous_thread_worker,
+        ),
+        patch("napari_pyvertexmodel._widget.progress"),
+    ):
         widget._run_model()
 
     # Run button should be disabled, cancel button enabled
@@ -695,10 +748,205 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
     assert widget._cancel_button.enabled is True
     # Worker should be stored and started
     assert widget._worker is mock_worker
-    mock_worker.returned.connect.assert_called_once_with(widget._on_simulation_done)
-    mock_worker.errored.connect.assert_called_once_with(widget._on_simulation_error)
-    mock_worker.finished.connect.assert_called_once_with(widget._on_simulation_finished)
+    mock_worker.returned.connect.assert_called_once_with(
+        widget._on_simulation_done
+    )
+    mock_worker.errored.connect.assert_called_once_with(
+        widget._on_simulation_error
+    )
+    mock_worker.finished.connect.assert_called_once_with(
+        widget._on_simulation_finished
+    )
     mock_worker.start.assert_called_once()
 
 
+def test_progress_bar_initial_state(make_napari_viewer, qtbot):
+    """Test that _progress_bar and _load_worker are None on initialisation."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
 
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert widget._progress_bar is None
+    assert widget._load_worker is None
+
+
+def test_image_layer_load_starts_worker(make_napari_viewer, qtbot):
+    """Test that _image_layer_load starts a background worker and updates button states."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    image_data = np.random.rand(50, 50).astype(np.float32)
+    image_layer = viewer.add_image(image_data, name="test_image")
+
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+    widget._image_layer_combo.value = image_layer
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            return mock_worker
+
+        return creator
+
+    with (
+        patch(
+            "napari_pyvertexmodel._widget.thread_worker",
+            synchronous_thread_worker,
+        ),
+        patch("napari_pyvertexmodel._widget.progress"),
+    ):
+        widget._image_layer_load()
+
+    assert widget._image_layer_load_button.enabled is False
+    assert widget._cancel_button.enabled is True
+    assert widget._load_worker is mock_worker
+    mock_worker.returned.connect.assert_called_once_with(widget._on_load_done)
+    mock_worker.errored.connect.assert_called_once_with(widget._on_load_error)
+    mock_worker.finished.connect.assert_called_once_with(
+        widget._on_load_finished
+    )
+    mock_worker.start.assert_called_once()
+
+
+def test_image_layer_load_already_running(make_napari_viewer, qtbot, capsys):
+    """Test that calling _image_layer_load while a load is running prints a message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    image_data = np.random.rand(50, 50).astype(np.float32)
+    image_layer = viewer.add_image(image_data, name="test_image")
+
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+    widget._image_layer_combo.value = image_layer
+    widget._load_worker = Mock()  # Simulate an already-running load
+
+    widget._image_layer_load()
+
+    captured = capsys.readouterr()
+    assert "already running" in captured.out
+
+
+def test_on_load_done_updates_model(make_napari_viewer, qtbot):
+    """Test that _on_load_done sets v_model and calls _add_surface_layer."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    label_data = np.zeros((10, 10), dtype=np.uint8)
+
+    with patch("napari_pyvertexmodel._widget._add_surface_layer") as mock_add:
+        widget._on_load_done((mock_model, label_data))
+
+    assert widget.v_model is mock_model
+    mock_add.assert_called_once()
+
+
+def test_on_load_done_when_cancelled(make_napari_viewer, qtbot):
+    """Test that _on_load_done skips everything when the operation was cancelled."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._cancelled = True
+    mock_model = MagicMock()
+    label_data = np.zeros((10, 10), dtype=np.uint8)
+
+    with patch("napari_pyvertexmodel._widget._add_surface_layer") as mock_add:
+        widget._on_load_done((mock_model, label_data))
+
+    assert widget.v_model is None  # Should not have been updated
+    mock_add.assert_not_called()
+
+
+def test_on_load_done_when_result_is_none(make_napari_viewer, qtbot):
+    """Test that _on_load_done handles a (None, None) result (cancelled in thread)."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    with patch("napari_pyvertexmodel._widget._add_surface_layer") as mock_add:
+        widget._on_load_done((None, None))
+
+    assert widget.v_model is None
+    mock_add.assert_not_called()
+
+
+def test_on_load_error_prints_message(make_napari_viewer, qtbot, capsys):
+    """Test that _on_load_error prints an error message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._on_load_error(RuntimeError("load failed"))
+
+    captured = capsys.readouterr()
+    assert "load failed" in captured.out
+
+
+def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
+    """Test that _on_load_finished restores button states and clears the worker."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    # Simulate in-progress state
+    widget._image_layer_load_button.enabled = False
+    widget._cancel_button.enabled = True
+    widget._load_worker = Mock()
+    widget._simulation_thread_id = 99999
+
+    widget._on_load_finished()
+
+    assert widget._image_layer_load_button.enabled is True
+    assert widget._cancel_button.enabled is False
+    assert widget._load_worker is None
+    assert widget._simulation_thread_id is None
+
+
+def test_on_simulation_finished_no_progress_bar(make_napari_viewer, qtbot):
+    """Test _on_simulation_finished works correctly when no progress bar exists."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._progress_bar = None  # Explicitly no progress bar
+    # Should not raise
+    widget._on_simulation_finished()
+    assert widget._progress_bar is None
+
+
+def test_cancel_cancels_load_labels(make_napari_viewer, qtbot):
+    """Test that _cancel_model also cancels a running load-labels operation."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    # Simulate a running load by setting a fake thread ID
+    widget._simulation_thread_id = 88888
+
+    with patch("napari_pyvertexmodel._widget.ctypes") as mock_ctypes:
+        mock_ctypes.c_ulong = lambda x: x
+        mock_ctypes.py_object = lambda x: x
+        widget._cancel_model()
+
+    assert widget._cancelled is True
