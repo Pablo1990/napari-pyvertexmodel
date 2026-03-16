@@ -328,7 +328,6 @@ def test_image_layer_load_labels_converts_to_binary(make_napari_viewer, qtbot):
             return_value=mock_v_model,
         ),
         patch("napari_pyvertexmodel._widget._add_surface_layer"),
-        patch("napari_pyvertexmodel._widget.progress"),
     ):
         widget._image_layer_load()
 
@@ -386,7 +385,6 @@ def test_image_layer_load_image_uses_data_directly(make_napari_viewer, qtbot):
             return_value=mock_v_model,
         ),
         patch("napari_pyvertexmodel._widget._add_surface_layer"),
-        patch("napari_pyvertexmodel._widget.progress"),
     ):
         widget._image_layer_load()
 
@@ -627,7 +625,7 @@ def test_run_model_already_running(make_napari_viewer, qtbot, capsys):
 
 
 def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
-    """Test that _on_simulation_finished restores button states and closes progress bar."""
+    """Test that _on_simulation_finished restores button states and updates status label."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
@@ -639,8 +637,6 @@ def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
     widget._cancel_button.enabled = True
     widget._worker = Mock()
     widget._simulation_thread_id = 12345
-    mock_progress_bar = Mock()
-    widget._progress_bar = mock_progress_bar
 
     widget._on_simulation_finished()
 
@@ -648,8 +644,7 @@ def test_on_simulation_finished_resets_state(make_napari_viewer, qtbot):
     assert widget._cancel_button.enabled is False
     assert widget._worker is None
     assert widget._simulation_thread_id is None
-    mock_progress_bar.close.assert_called_once()
-    assert widget._progress_bar is None
+    assert widget.status_label.value == "Ready"
 
 
 def test_on_simulation_error_prints_message(make_napari_viewer, qtbot, capsys):
@@ -739,7 +734,6 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
             "napari_pyvertexmodel._widget.thread_worker",
             synchronous_thread_worker,
         ),
-        patch("napari_pyvertexmodel._widget.progress"),
     ):
         widget._run_model()
 
@@ -761,15 +755,15 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
 
 
 def test_progress_bar_initial_state(make_napari_viewer, qtbot):
-    """Test that _progress_bar, _load_progress_bar and _load_worker are None on initialization."""
+    """Test that status_label and progress_label are correctly initialised."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
     widget = Run3dVertexModel(viewer)
     qtbot.addWidget(widget.native)
 
-    assert widget._progress_bar is None
-    assert widget._load_progress_bar is None
+    assert widget.status_label.value == "Ready"
+    assert widget.progress_label.value == ""
     assert widget._load_worker is None
 
 
@@ -798,7 +792,6 @@ def test_image_layer_load_starts_worker(make_napari_viewer, qtbot):
             "napari_pyvertexmodel._widget.thread_worker",
             synchronous_thread_worker,
         ),
-        patch("napari_pyvertexmodel._widget.progress"),
     ):
         widget._image_layer_load()
 
@@ -899,7 +892,7 @@ def test_on_load_error_prints_message(make_napari_viewer, qtbot, capsys):
 
 
 def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
-    """Test that _on_load_finished restores button states, clears the worker, and closes the progress bar."""
+    """Test that _on_load_finished restores button states, clears the worker, and updates the status label."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
@@ -911,8 +904,6 @@ def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
     widget._cancel_button.enabled = True
     widget._load_worker = Mock()
     widget._simulation_thread_id = 99999
-    mock_load_progress_bar = Mock()
-    widget._load_progress_bar = mock_load_progress_bar
 
     widget._on_load_finished()
 
@@ -920,22 +911,20 @@ def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
     assert widget._cancel_button.enabled is False
     assert widget._load_worker is None
     assert widget._simulation_thread_id is None
-    mock_load_progress_bar.close.assert_called_once()
-    assert widget._load_progress_bar is None
+    assert widget.status_label.value == "Ready"
 
 
 def test_on_simulation_finished_no_progress_bar(make_napari_viewer, qtbot):
-    """Test _on_simulation_finished works correctly when no progress bar exists."""
+    """Test _on_simulation_finished resets state correctly (no progress bar to close)."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
     widget = Run3dVertexModel(viewer)
     qtbot.addWidget(widget.native)
 
-    widget._progress_bar = None  # Explicitly no progress bar
     # Should not raise
     widget._on_simulation_finished()
-    assert widget._progress_bar is None
+    assert widget.status_label.value == "Ready"
 
 
 def test_cancel_cancels_load_labels(make_napari_viewer, qtbot):

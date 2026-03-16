@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 import napari.layers
 import numpy as np
-from magicgui.widgets import CheckBox, Container, PushButton, create_widget
+from magicgui.widgets import CheckBox, Container, Label, PushButton, create_widget
 from napari.qt.threading import thread_worker
-from napari.utils import progress
 from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
 )
@@ -193,6 +192,10 @@ class Run3dVertexModel(Container):
         self._cancel_button = PushButton(text="Cancel")
         self._cancel_button.enabled = False
 
+        # Status Display
+        self.status_label = Label(value="Ready")
+        self.progress_label = Label(value="")
+
         # connect your own callbacks
         self._run_button.clicked.connect(self._run_model)
         self._cancel_button.clicked.connect(self._cancel_model)
@@ -222,6 +225,8 @@ class Run3dVertexModel(Container):
                 self._load_simulation_button,
                 self._run_button,
                 self._cancel_button,
+                self.status_label,
+                self.progress_label,
             ]
         )
 
@@ -230,8 +235,6 @@ class Run3dVertexModel(Container):
         self._temp_dir = None  # Store temp directory reference for clean-up
         self._worker = None  # Background simulation worker
         self._load_worker = None  # Background load-labels worker
-        self._progress_bar = None  # Progress bar for simulation
-        self._load_progress_bar = None  # Progress bar for load-labels operation
         self._simulation_thread_id = None  # Thread ID for cancellation
         self._simulation_lock = (
             threading.Lock()
@@ -258,27 +261,27 @@ class Run3dVertexModel(Container):
                 print("Please select a valid .pkl file.")
                 return
 
-            with progress(total=3, desc="Loading simulation") as pbr:
-                pbr.set_description("Initializing model")
-                self.v_model = VertexModelVoronoiFromTimeImage(
-                    create_output_folder=False,
-                    set_option=DEFAULT_VERTEX_MODEL_OPTION,
-                )
-                pbr.update(1)
+            self.status_label.value = "Loading simulation..."
+            self.progress_label.value = ""
+            self.v_model = VertexModelVoronoiFromTimeImage(
+                create_output_folder=False,
+                set_option=DEFAULT_VERTEX_MODEL_OPTION,
+            )
 
-                pbr.set_description("Loading simulation state")
-                load_state(self.v_model, pkl_file)
-                self.v_model.set.OutputFolder = None  # Disable output folder
-                self.v_model.set.export_images = False  # Disable image export
-                self._update_sliders_from_model()
-                pbr.update(1)
+            self.status_label.value = "Loading simulation state..."
+            load_state(self.v_model, pkl_file)
+            self.v_model.set.OutputFolder = None  # Disable output folder
+            self.v_model.set.export_images = False  # Disable image export
+            self._update_sliders_from_model()
 
-                pbr.set_description("Updating viewer")
-                _add_surface_layer(self._viewer, self.v_model)
-                pbr.update(1)
-
+            self.status_label.value = "Updating viewer..."
+            _add_surface_layer(self._viewer, self.v_model)
+            self.status_label.value = "Ready"
+            self.progress_label.value = "Simulation loaded successfully."
             print("Simulation loaded successfully.")
         except Exception as e:  # noqa: BLE001
+            self.status_label.value = "Ready"
+            self.progress_label.value = f"Error loading simulation: {e}"
             print(f"An error occurred while loading the simulation: {e}")
 
     def _update_sliders_from_model(self):
@@ -353,11 +356,8 @@ class Run3dVertexModel(Container):
         self._simulation_thread_id = None
         self._image_layer_load_button.enabled = False
         self._cancel_button.enabled = True
-
-        # Create the progress bar on the main thread so Qt widget ownership is
-        # correct. Use total=0 (indeterminate) to avoid calling update() from
-        # any thread, consistent with how the simulation run progress works.
-        self._load_progress_bar = progress(total=0, desc="Loading labels")
+        self.status_label.value = "Loading labels..."
+        self.progress_label.value = ""
 
         @thread_worker
         def _run_load():
@@ -398,6 +398,7 @@ class Run3dVertexModel(Container):
             return
 
         self.v_model = local_model
+        self.progress_label.value = "Labels loaded successfully."
         print("Labels loaded successfully.")
 
         try:
@@ -414,6 +415,7 @@ class Run3dVertexModel(Container):
 
     def _on_load_error(self, exc):
         """Called on the main thread when labels loading raises an unhandled exception."""
+        self.progress_label.value = f"Error loading labels: {exc}"
         print(f"An error occurred while loading the labels: {exc}")
         traceback.print_exc()
 
@@ -423,9 +425,7 @@ class Run3dVertexModel(Container):
         self._cancel_button.enabled = False
         self._load_worker = None
         self._simulation_thread_id = None
-        if self._load_progress_bar is not None:
-            self._load_progress_bar.close()
-            self._load_progress_bar = None
+        self.status_label.value = "Ready"
 
     def _create_temp_folder(self):
         # Create new temp directory and store reference
@@ -454,7 +454,8 @@ class Run3dVertexModel(Container):
         self._simulation_thread_id = None
         self._run_button.enabled = False
         self._cancel_button.enabled = True
-        self._progress_bar = progress(total=0, desc="Running simulation")
+        self.status_label.value = "Running simulation..."
+        self.progress_label.value = ""
 
         @thread_worker
         def _run_simulation():
@@ -480,9 +481,11 @@ class Run3dVertexModel(Container):
                 self.v_model,
                 input_image_dims=getattr(self, "_input_image_dims", None),
             )
+            self.progress_label.value = "Simulation complete."
 
     def _on_simulation_error(self, exc):
         """Called on the main thread when the simulation raises an unhandled exception."""
+        self.progress_label.value = f"Error: {exc}"
         print(f"An error occurred during the simulation: {exc}")
 
     def _on_simulation_finished(self):
@@ -491,9 +494,7 @@ class Run3dVertexModel(Container):
         self._cancel_button.enabled = False
         self._worker = None
         self._simulation_thread_id = None
-        if self._progress_bar is not None:
-            self._progress_bar.close()
-            self._progress_bar = None
+        self.status_label.value = "Ready"
 
     def _cancel_model(self):
         """Request cancellation of the currently running simulation.
@@ -512,6 +513,7 @@ class Run3dVertexModel(Container):
                 ctypes.py_object(SystemExit),
             )
             print("Cancellation requested. The simulation will stop shortly.")
+            self.progress_label.value = "Cancellation requested..."
 
     def _display_advanced_params(self):
         if self._show_advanced_params_checkbox.value:
