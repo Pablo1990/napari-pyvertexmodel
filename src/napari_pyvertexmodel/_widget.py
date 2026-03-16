@@ -230,7 +230,8 @@ class Run3dVertexModel(Container):
         self._temp_dir = None  # Store temp directory reference for clean-up
         self._worker = None  # Background simulation worker
         self._load_worker = None  # Background load-labels worker
-        self._progress_bar = None  # Progress bar for long-running operations
+        self._progress_bar = None  # Progress bar for simulation
+        self._load_progress_bar = None  # Progress bar for load-labels operation
         self._simulation_thread_id = None  # Thread ID for cancellation
         self._simulation_lock = (
             threading.Lock()
@@ -353,38 +354,51 @@ class Run3dVertexModel(Container):
         self._image_layer_load_button.enabled = False
         self._cancel_button.enabled = True
 
+        # Create progress bar on the main thread so Qt widget ownership is correct
+        self._load_progress_bar = progress(
+            total=2, desc="Initializing model"
+        )
+
         @thread_worker
         def _run_load():
             with self._simulation_lock:
                 self._simulation_thread_id = threading.current_thread().ident
             try:
-                with progress(total=2, desc="Loading labels") as pbr:
-                    pbr.set_description("Initializing model")
-                    local_model = VertexModelVoronoiFromTimeImage(
-                        create_output_folder=False,
-                        set_option=DEFAULT_VERTEX_MODEL_OPTION,
-                    )
-                    local_model.set.model_name = layer_name
-                    local_model.set.OutputFolder = None
-                    local_model.set.export_images = False
-                    tempdir = local_model.create_temporary_folder()
-                    local_model.set.initial_filename_state = os.path.join(
-                        tempdir, layer_name
-                    )
-                    local_model.set.TotalCells = total_cells
-                    local_model.set.CellHeight = cell_height
-                    pbr.update(1)
+                local_model = VertexModelVoronoiFromTimeImage(
+                    create_output_folder=False,
+                    set_option=DEFAULT_VERTEX_MODEL_OPTION,
+                )
+                local_model.set.model_name = layer_name
+                local_model.set.OutputFolder = None
+                local_model.set.export_images = False
+                tempdir = local_model.create_temporary_folder()
+                local_model.set.initial_filename_state = os.path.join(
+                    tempdir, layer_name
+                )
+                local_model.set.TotalCells = total_cells
+                local_model.set.CellHeight = cell_height
+                # Yield to the main thread to advance the progress bar
+                yield 1
 
-                    pbr.set_description("Processing label data")
-                    local_model.initialize(label_data)
-                    pbr.update(1)
+                local_model.initialize(label_data)
+                yield 2
             except SystemExit:
                 print("Load labels cancelled.")
                 return None, None
 
             return local_model, label_data
 
+        def _on_load_yield(step):
+            """Update the load progress bar on the main thread for each step."""
+            if self._load_progress_bar is not None:
+                if step == 2:
+                    self._load_progress_bar.set_description(
+                        "Processing label data"
+                    )
+                self._load_progress_bar.update(1)
+
         worker = _run_load()
+        worker.yielded.connect(_on_load_yield)
         worker.returned.connect(self._on_load_done)
         worker.errored.connect(self._on_load_error)
         worker.finished.connect(self._on_load_finished)
@@ -423,6 +437,9 @@ class Run3dVertexModel(Container):
         self._cancel_button.enabled = False
         self._load_worker = None
         self._simulation_thread_id = None
+        if self._load_progress_bar is not None:
+            self._load_progress_bar.close()
+            self._load_progress_bar = None
 
     def _create_temp_folder(self):
         # Create new temp directory and store reference

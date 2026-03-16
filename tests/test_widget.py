@@ -313,7 +313,14 @@ def test_image_layer_load_labels_converts_to_binary(make_napari_viewer, qtbot):
 
     def synchronous_thread_worker(func):
         def creator(*args, **kwargs):
-            func()  # execute the thread_worker-decorated function synchronously
+            result = func()
+            # If _run_load is a generator, exhaust it so its body runs
+            if hasattr(result, "__next__"):
+                try:
+                    while True:
+                        next(result)
+                except StopIteration:
+                    pass
             return mock_worker
 
         return creator
@@ -371,7 +378,14 @@ def test_image_layer_load_image_uses_data_directly(make_napari_viewer, qtbot):
 
     def synchronous_thread_worker(func):
         def creator(*args, **kwargs):
-            func()
+            result = func()
+            # If _run_load is a generator, exhaust it so its body runs
+            if hasattr(result, "__next__"):
+                try:
+                    while True:
+                        next(result)
+                except StopIteration:
+                    pass
             return mock_worker
 
         return creator
@@ -761,7 +775,7 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
 
 
 def test_progress_bar_initial_state(make_napari_viewer, qtbot):
-    """Test that _progress_bar and _load_worker are None on initialisation."""
+    """Test that _progress_bar, _load_progress_bar and _load_worker are None on initialization."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
@@ -769,6 +783,7 @@ def test_progress_bar_initial_state(make_napari_viewer, qtbot):
     qtbot.addWidget(widget.native)
 
     assert widget._progress_bar is None
+    assert widget._load_progress_bar is None
     assert widget._load_worker is None
 
 
@@ -804,6 +819,7 @@ def test_image_layer_load_starts_worker(make_napari_viewer, qtbot):
     assert widget._image_layer_load_button.enabled is False
     assert widget._cancel_button.enabled is True
     assert widget._load_worker is mock_worker
+    mock_worker.yielded.connect.assert_called_once()
     mock_worker.returned.connect.assert_called_once_with(widget._on_load_done)
     mock_worker.errored.connect.assert_called_once_with(widget._on_load_error)
     mock_worker.finished.connect.assert_called_once_with(
@@ -898,7 +914,7 @@ def test_on_load_error_prints_message(make_napari_viewer, qtbot, capsys):
 
 
 def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
-    """Test that _on_load_finished restores button states and clears the worker."""
+    """Test that _on_load_finished restores button states, clears the worker, and closes the progress bar."""
     from napari_pyvertexmodel._widget import Run3dVertexModel
 
     viewer = make_napari_viewer
@@ -910,6 +926,8 @@ def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
     widget._cancel_button.enabled = True
     widget._load_worker = Mock()
     widget._simulation_thread_id = 99999
+    mock_load_progress_bar = Mock()
+    widget._load_progress_bar = mock_load_progress_bar
 
     widget._on_load_finished()
 
@@ -917,6 +935,8 @@ def test_on_load_finished_resets_state(make_napari_viewer, qtbot):
     assert widget._cancel_button.enabled is False
     assert widget._load_worker is None
     assert widget._simulation_thread_id is None
+    mock_load_progress_bar.close.assert_called_once()
+    assert widget._load_progress_bar is None
 
 
 def test_on_simulation_finished_no_progress_bar(make_napari_viewer, qtbot):
