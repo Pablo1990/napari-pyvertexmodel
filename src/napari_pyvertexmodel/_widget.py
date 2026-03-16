@@ -354,10 +354,10 @@ class Run3dVertexModel(Container):
         self._image_layer_load_button.enabled = False
         self._cancel_button.enabled = True
 
-        # Create progress bar on the main thread so Qt widget ownership is correct
-        self._load_progress_bar = progress(
-            total=2, desc="Initializing model"
-        )
+        # Create the progress bar on the main thread so Qt widget ownership is
+        # correct. Use total=0 (indeterminate) to avoid calling update() from
+        # any thread, consistent with how the simulation run progress works.
+        self._load_progress_bar = progress(total=0, desc="Loading labels")
 
         @thread_worker
         def _run_load():
@@ -377,28 +377,14 @@ class Run3dVertexModel(Container):
                 )
                 local_model.set.TotalCells = total_cells
                 local_model.set.CellHeight = cell_height
-                # Yield to the main thread to advance the progress bar
-                yield 1
-
                 local_model.initialize(label_data)
-                yield 2
             except SystemExit:
                 print("Load labels cancelled.")
                 return None, None
 
             return local_model, label_data
 
-        def _on_load_yield(step):
-            """Update the load progress bar on the main thread for each step."""
-            if self._load_progress_bar is not None:
-                if step == 2:
-                    self._load_progress_bar.set_description(
-                        "Processing label data"
-                    )
-                self._load_progress_bar.update(1)
-
         worker = _run_load()
-        worker.yielded.connect(_on_load_yield)
         worker.returned.connect(self._on_load_done)
         worker.errored.connect(self._on_load_error)
         worker.finished.connect(self._on_load_finished)

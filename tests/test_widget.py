@@ -313,14 +313,7 @@ def test_image_layer_load_labels_converts_to_binary(make_napari_viewer, qtbot):
 
     def synchronous_thread_worker(func):
         def creator(*args, **kwargs):
-            result = func()
-            # If _run_load is a generator, exhaust it so its body runs
-            if hasattr(result, "__next__"):
-                try:
-                    while True:
-                        next(result)
-                except StopIteration:
-                    pass
+            func()  # execute the worker function synchronously for testing
             return mock_worker
 
         return creator
@@ -378,14 +371,7 @@ def test_image_layer_load_image_uses_data_directly(make_napari_viewer, qtbot):
 
     def synchronous_thread_worker(func):
         def creator(*args, **kwargs):
-            result = func()
-            # If _run_load is a generator, exhaust it so its body runs
-            if hasattr(result, "__next__"):
-                try:
-                    while True:
-                        next(result)
-                except StopIteration:
-                    pass
+            func()  # execute the worker function synchronously for testing
             return mock_worker
 
         return creator
@@ -743,7 +729,7 @@ def test_run_model_starts_worker(make_napari_viewer, qtbot):
     # immediately (to cover the inner function body) and returns mock_worker.
     def synchronous_thread_worker(func):
         def creator(*args, **kwargs):
-            func()  # execute _run_simulation to cover its lines
+            func()  # execute the worker function synchronously for testing
             return mock_worker
 
         return creator
@@ -819,7 +805,6 @@ def test_image_layer_load_starts_worker(make_napari_viewer, qtbot):
     assert widget._image_layer_load_button.enabled is False
     assert widget._cancel_button.enabled is True
     assert widget._load_worker is mock_worker
-    mock_worker.yielded.connect.assert_called_once()
     mock_worker.returned.connect.assert_called_once_with(widget._on_load_done)
     mock_worker.errored.connect.assert_called_once_with(widget._on_load_error)
     mock_worker.finished.connect.assert_called_once_with(
