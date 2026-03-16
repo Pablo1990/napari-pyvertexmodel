@@ -332,8 +332,9 @@ class Run3dVertexModel(Container):
             # For a Labels layer, convert to a binary image (non-zero → 1)
             # so that the simulation receives a standard segmented image.
             if isinstance(image_layer, napari.layers.Labels):
-                label_data = (image_layer.data > 0).astype(int)
+                label_data = image_layer.data == 0
             elif isinstance(image_layer, napari.layers.Image):
+                # Check if the image has a 0 background or background of 1
                 label_data = image_layer.data
             else:
                 print(
