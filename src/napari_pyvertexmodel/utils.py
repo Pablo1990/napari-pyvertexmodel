@@ -77,8 +77,12 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
     merged_scalars = np.concatenate(all_scalars, axis=0)
 
     # Swap columns to convert from VTK column order (x=0, y=1, z=2) to
-    # napari column order (z=0, y=1, x=2) so the surface mesh is correctly
-    # oriented with respect to the input image.
+    # napari column order (z=0, y=1, x=2).  VTK uses standard right-handed
+    # (x, y, z) ordering, while napari surfaces use (z, y, x) for 3D spatial
+    # data.  This reordering MUST happen before the scaling step below so that
+    # the lateral scale factors (derived from the image plane) are applied to
+    # the correct axes (napari columns 1 and 2) rather than to the tissue-
+    # height axis (napari column 0).
     merged_vertices = merged_vertices[:, [2, 1, 0]]
 
     # Scale vertices to match input image dimensions if provided
@@ -104,8 +108,13 @@ def _get_mesh(v_model, input_image_dims=None) -> tuple[Any, Any, Any]:
             scale_factors[nonzero] = (
                 input_dims[nonzero] / vertices_bbox_dims[nonzero]
             )
-            # Apply uniform scaling to all axes to maintain proportions
-            merged_vertices *= np.mean(scale_factors[nonzero])
+            # Apply scaling only to the lateral dimensions (napari y and x,
+            # columns 1 and 2). The tissue-height axis (napari z, column 0)
+            # must NOT be rescaled, otherwise it grows by the same large
+            # factor as the image plane and produces an enormous column.
+            scale = np.mean(scale_factors[nonzero])
+            merged_vertices[:, 1] *= scale
+            merged_vertices[:, 2] *= scale
 
     return merged_faces, merged_scalars, merged_vertices
 

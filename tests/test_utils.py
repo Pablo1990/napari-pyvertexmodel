@@ -234,6 +234,39 @@ def test_get_mesh_with_scaling(mock_v_model):
         # With input dims [100, 100] and bbox [0-10, 0-10], scale should be ~10
         assert vertices[1, 2] > 10  # napari X (column 2) of vertex 1 scaled up
         assert vertices[2, 1] > 10  # napari Y (column 1) of vertex 2 scaled up
+        # Tissue-height axis (napari col 0) must NOT be scaled; all z values
+        # are 0 in the mock data so verify the column is still 0.
+        assert np.all(vertices[:, 0] == 0)  # napari Z (col 0) unchanged
+
+
+def test_get_mesh_scaling_does_not_affect_tissue_height(mock_v_model):
+    """Scaling to match image dims must not inflate the tissue-height axis.
+
+    The tissue height is stored in napari column 0 (= VTK z column after
+    reordering).  Applying the lateral scale factor to it too would create
+    an enormous column instead of a flat slab.
+    """
+    with patch('napari_pyvertexmodel.utils._create_surface_data') as mock_create:
+        # VTK vertices: x in [0,10], y in [0,10], z (tissue height) in [0,5]
+        mock_create.return_value = (
+            "layer_name",
+            np.array([[0, 1, 2]], dtype=int),
+            np.array([0.001, 0.002, 0.003], dtype=float),
+            np.array([[0, 0, 0], [10, 0, 5], [0, 10, 5]], dtype=float),
+        )
+
+        input_dims = [100, 100]  # lateral scale ~10
+        faces, scalars, vertices = _get_mesh(mock_v_model, input_image_dims=input_dims)
+
+        # After reorder: col 0 = VTK z (0 or 5), col 1 = VTK y (0 or 10),
+        # col 2 = VTK x (0 or 10)
+        # Lateral dims (cols 1, 2) should be scaled by ~10
+        assert vertices[1, 2] > 10   # x scaled: 10 → ~100
+        assert vertices[2, 1] > 10   # y scaled: 10 → ~100
+        # Tissue height (col 0) must remain at original model values (0 and 5)
+        assert vertices[0, 0] == 0
+        assert vertices[1, 0] == 5
+        assert vertices[2, 0] == 5
 
 
 def test_get_mesh_dead_cells_filtered(mock_v_model):
