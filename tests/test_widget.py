@@ -1118,3 +1118,177 @@ def test_estimate_lambda_s_worker_initial_state(make_napari_viewer, qtbot):
     qtbot.addWidget(widget.native)
 
     assert widget._estimate_lambda_s_worker is None
+
+
+def test_estimate_lambda_s_run_estimation_body(make_napari_viewer, qtbot):
+    """Test the _run_estimation inner function body is executed (covers thread_worker lines).
+
+    Uses a synchronous_thread_worker that actually calls func() with a mocked
+    optuna so the study creation / optimize / best_params lines are covered.
+    """
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    widget.v_model = mock_model
+
+    # Build a lightweight mock for optuna that records calls
+    mock_study = MagicMock()
+    mock_study.best_params = {"lambdaS1": 0.25, "lambdaS2": 0.05}
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    returned_value_holder = {}
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            # Execute the inner function with optuna replaced in sys.modules
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                result = func()
+                returned_value_holder["result"] = result
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    mock_optuna.create_study.assert_called_once_with(direction="minimize")
+    mock_study.optimize.assert_called_once()
+    assert returned_value_holder["result"] == {
+        "lambdaS1": 0.25,
+        "lambdaS2": 0.05,
+    }
+
+
+def test_estimate_lambda_s_objective_success(make_napari_viewer, qtbot):
+    """Test that the objective function inside _run_estimation is called and returns gr."""
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    mock_model.single_iteration.return_value = 0.01
+    widget.v_model = mock_model
+
+    captured_objective_result = {}
+
+    mock_study = MagicMock()
+
+    def fake_optimize(obj_func, n_trials):
+        mock_trial = MagicMock()
+        mock_trial.suggest_float.side_effect = [0.3, 0.05]
+        result = obj_func(mock_trial)
+        captured_objective_result["value"] = result
+
+    mock_study.optimize.side_effect = fake_optimize
+    mock_study.best_params = {"lambdaS1": 0.3, "lambdaS2": 0.05}
+
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                func()
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    # The objective was called and returned the gr value from single_iteration
+    assert captured_objective_result["value"] == 0.01
+
+
+def test_estimate_lambda_s_objective_exception_path(make_napari_viewer, qtbot):
+    """Test that the objective function returns inf when single_iteration raises."""
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    mock_model.single_iteration.side_effect = RuntimeError("sim error")
+    widget.v_model = mock_model
+
+    captured_objective_result = {}
+
+    mock_study = MagicMock()
+
+    def fake_optimize(obj_func, n_trials):
+        mock_trial = MagicMock()
+        mock_trial.suggest_float.side_effect = [0.3, 0.05]
+        result = obj_func(mock_trial)
+        captured_objective_result["value"] = result
+
+    mock_study.optimize.side_effect = fake_optimize
+    mock_study.best_params = {"lambdaS1": 0.3, "lambdaS2": 0.05}
+
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                func()
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    # The exception path returns float("inf")
+    assert captured_objective_result["value"] == float("inf")
