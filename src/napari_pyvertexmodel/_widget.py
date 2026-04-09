@@ -155,9 +155,9 @@ class Run3dVertexModel(Container):
             text="Show Advanced Parameters", value=False
         )
 
-        # Energy Barrier (Lambda R) slider (use Unicode lambda)
+        # Energy Barrier (Lambda AR) slider (use Unicode lambda)
         self._lambda_r_slider = create_widget(
-            label="λR", annotation=float, widget_type="FloatSlider"
+            label="λ Aspect Ratio", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_r_slider.min = 0
         self._lambda_r_slider.max = 1e-4
