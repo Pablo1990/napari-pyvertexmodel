@@ -2021,7 +2021,7 @@ requires-dist = [
     { name = "napari", extras = ["all"], marker = "extra == 'all'" },
     { name = "numpy" },
     { name = "optuna" },
-    { name = "pyvertexmodel" },
+    { name = "pyvertexmodel", specifier = "==1.0.7" },
     { name = "qtpy" },
     { name = "scikit-image" },
 ]
@@ -3162,7 +3162,7 @@ wheels = [
 
 [[package]]
 name = "pyvertexmodel"
-version = "1.0.5"
+version = "1.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cython" },
@@ -3184,7 +3184,7 @@ dependencies = [
     { name = "seaborn" },
     { name = "vtk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/e5/7c0ab843d7fc8df203e6fed7f6cf000e14e98eb6a7f23b08733fc59b7ddd/pyvertexmodel-1.0.5.tar.gz", hash = "sha256:1b673d21889fbde581cbc3859ddd96297608408a53dd006359301977b5b20223", size = 23026593, upload-time = "2026-02-02T15:29:37.717Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/ac/5921f25261c7e4abd2d38777ab1d97661b3e8d16f12be6cc0b8399332e5f/pyvertexmodel-1.0.7.tar.gz", hash = "sha256:c412143693d58713d5478c160754543958c087513b0d1e8fd52ed1520fdbd65d", size = 23036692, upload-time = "2026-04-09T11:22:18.025Z" }
 
 [[package]]
 name = "pyvista"
