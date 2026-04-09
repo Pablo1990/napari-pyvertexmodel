@@ -64,27 +64,27 @@ class Run3dVertexModel(Container):
         self._image_layer_load_button = PushButton(text="Load Labels")
 
         # ----- Sliders with mechanical parameters -----
-        # Lambda Volume slider
+        # Lambda Volume slider (use Unicode lambda)
         self._lambda_volume_slider = create_widget(
-            label=r"$\lambda_V$", annotation=float, widget_type="FloatSlider"
+            label="λV", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_volume_slider.min = 0
         self._lambda_volume_slider.max = 10
         self._lambda_volume_slider.step = 0.01
         self._lambda_volume_slider.value = 1.0
 
-        # Volume reference slider
+        # Volume reference slider (use subscript zero)
         self._volume_reference_slider = create_widget(
-            label=r"$V_{0}$", annotation=float, widget_type="FloatSlider"
+            label="V₀", annotation=float, widget_type="FloatSlider"
         )
         self._volume_reference_slider.min = 0
         self._volume_reference_slider.max = 10
         self._volume_reference_slider.step = 0.01
         self._volume_reference_slider.value = 1.0
 
-        # Lambda Surface top slider
+        # Lambda Surface top slider (use Unicode lambda)
         self._lambda_surface_top_slider = create_widget(
-            label=r"$\lambda_{S1}$",
+            label="λS1",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -93,9 +93,9 @@ class Run3dVertexModel(Container):
         self._lambda_surface_top_slider.step = 0.01
         self._lambda_surface_top_slider.value = 0.5
 
-        # Lambda Surface bottom slider
+        # Lambda Surface bottom slider (use Unicode lambda)
         self._lambda_surface_bottom_slider = create_widget(
-            label=r"$\lambda_{S3}$",
+            label="λS3",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -104,9 +104,9 @@ class Run3dVertexModel(Container):
         self._lambda_surface_bottom_slider.step = 0.01
         self._lambda_surface_bottom_slider.value = 0.5
 
-        # Lambda Surface lateral slider
+        # Lambda Surface lateral slider (use Unicode lambda)
         self._lambda_surface_lateral_slider = create_widget(
-            label=r"$\lambda_{S2}$",
+            label="λS2",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -120,9 +120,9 @@ class Run3dVertexModel(Container):
             text="Estimate \u03bbS Parameters"
         )
 
-        # Surface Area reference slider
+        # Surface Area reference slider (use subscript zero)
         self._surface_area_reference_slider = create_widget(
-            label=r"$A_{0}$", annotation=float, widget_type="FloatSlider"
+            label="A₀", annotation=float, widget_type="FloatSlider"
         )
         self._surface_area_reference_slider.min = 0
         self._surface_area_reference_slider.max = 10
@@ -131,7 +131,7 @@ class Run3dVertexModel(Container):
 
         # K substrate slider
         self._k_substrate_slider = create_widget(
-            label=r"$k_{Substrate}$",
+            label="Substrate adhesion (k)",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -142,7 +142,7 @@ class Run3dVertexModel(Container):
 
         # T end slider
         self._t_end_slider = create_widget(
-            label=r"$t_{end}$", annotation=float, widget_type="FloatSlider"
+            label="End time (min.)", annotation=float, widget_type="FloatSlider"
         )
         self._t_end_slider.min = 0
         self._t_end_slider.max = 30
@@ -155,18 +155,18 @@ class Run3dVertexModel(Container):
             text="Show Advanced Parameters", value=False
         )
 
-        # Energy Barrier (Lambda R) slider
+        # Energy Barrier (Lambda R) slider (use Unicode lambda)
         self._lambda_r_slider = create_widget(
-            label=r"$\lambda_{R}$", annotation=float, widget_type="FloatSlider"
+            label="λR", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_r_slider.min = 0
         self._lambda_r_slider.max = 1e-4
         self._lambda_r_slider.step = 1e-8
         self._lambda_r_slider.value = 8e-7
 
-        # Viscosity slider
+        # Viscosity slider (use Unicode nu)
         self._viscosity_slider = create_widget(
-            label=r"$\nu$", annotation=float, widget_type="FloatSlider"
+            label="Viscosity (µ)", annotation=float, widget_type="FloatSlider"
         )
         self._viscosity_slider.min = 0
         self._viscosity_slider.max = 1
