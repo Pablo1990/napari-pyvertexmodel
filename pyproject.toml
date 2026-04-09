@@ -33,7 +33,8 @@ dependencies = [
     "magicgui",
     "qtpy",
     "scikit-image",
-    "pyvertexmodel",
+    "pyvertexmodel==1.0.7",
+    "optuna",
 ]
 
 [project.optional-dependencies]

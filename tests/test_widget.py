@@ -944,3 +944,351 @@ def test_cancel_cancels_load_labels(make_napari_viewer, qtbot):
         widget._cancel_model()
 
     assert widget._cancelled is True
+
+
+# ---------------------------------------------------------------------------
+# Tests for _estimate_lambda_s and related callbacks
+# ---------------------------------------------------------------------------
+
+
+def test_estimate_lambda_s_button_exists(make_napari_viewer, qtbot):
+    """Test that the estimate lambda_s button is present in the widget."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert widget._estimate_lambda_s_button is not None
+    assert widget._estimate_lambda_s_button in widget
+
+
+def test_estimate_lambda_s_button_text(make_napari_viewer, qtbot):
+    """Test that the estimate button has the correct label text."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert "stimate" in widget._estimate_lambda_s_button.text
+
+
+def test_estimate_lambda_s_no_model(make_napari_viewer, qtbot, capsys):
+    """Test that _estimate_lambda_s prints an error when no model is loaded."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._estimate_lambda_s()
+
+    captured = capsys.readouterr()
+    assert "No model loaded" in captured.out
+
+
+def test_estimate_lambda_s_already_running(make_napari_viewer, qtbot, capsys):
+    """Test that calling _estimate_lambda_s while one is running prints a message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget.v_model = Mock()
+    widget._estimate_lambda_s_worker = Mock()  # Simulate running estimation
+
+    widget._estimate_lambda_s()
+
+    captured = capsys.readouterr()
+    assert "already running" in captured.out
+
+
+def test_estimate_lambda_s_starts_worker(make_napari_viewer, qtbot):
+    """Test that _estimate_lambda_s starts a background worker."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    widget.v_model = mock_model
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    assert widget._estimate_lambda_s_button.enabled is False
+    assert widget._estimate_lambda_s_worker is mock_worker
+    mock_worker.returned.connect.assert_called_once_with(
+        widget._on_estimation_done
+    )
+    mock_worker.errored.connect.assert_called_once_with(
+        widget._on_estimation_error
+    )
+    mock_worker.finished.connect.assert_called_once_with(
+        widget._on_estimation_finished
+    )
+    mock_worker.start.assert_called_once()
+
+
+def test_on_estimation_done_updates_sliders(make_napari_viewer, qtbot):
+    """Test that _on_estimation_done updates the lambda_s sliders."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    best_params = {"lambdaS1": 0.42, "lambdaS2": 0.07}
+    widget._on_estimation_done(best_params)
+
+    assert widget._lambda_surface_top_slider.value == pytest.approx(0.42)
+    assert widget._lambda_surface_bottom_slider.value == pytest.approx(
+        0.42
+    )  # S3 = S1
+    assert widget._lambda_surface_lateral_slider.value == pytest.approx(0.07)
+
+
+def test_on_estimation_done_none_result(make_napari_viewer, qtbot):
+    """Test that _on_estimation_done handles None result gracefully."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    original_s1 = widget._lambda_surface_top_slider.value
+    widget._on_estimation_done(None)
+
+    # Sliders should be unchanged
+    assert widget._lambda_surface_top_slider.value == original_s1
+
+
+def test_on_estimation_error_prints_message(make_napari_viewer, qtbot, capsys):
+    """Test that _on_estimation_error prints an error message."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._on_estimation_error(RuntimeError("optuna failure"))
+
+    captured = capsys.readouterr()
+    assert "optuna failure" in captured.out
+
+
+def test_on_estimation_finished_resets_state(make_napari_viewer, qtbot):
+    """Test that _on_estimation_finished re-enables the button and clears the worker."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    widget._estimate_lambda_s_button.enabled = False
+    widget._estimate_lambda_s_worker = Mock()
+
+    widget._on_estimation_finished()
+
+    assert widget._estimate_lambda_s_button.enabled is True
+    assert widget._estimate_lambda_s_worker is None
+    assert widget.status_label.value == "Ready"
+
+
+def test_estimate_lambda_s_worker_initial_state(make_napari_viewer, qtbot):
+    """Test that the estimation worker is None initially."""
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    assert widget._estimate_lambda_s_worker is None
+
+
+def test_estimate_lambda_s_run_estimation_body(make_napari_viewer, qtbot):
+    """Test the _run_estimation inner function body is executed (covers thread_worker lines).
+
+    Uses a synchronous_thread_worker that actually calls func() with a mocked
+    optuna so the study creation / optimize / best_params lines are covered.
+    """
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    widget.v_model = mock_model
+
+    # Build a lightweight mock for optuna that records calls
+    mock_study = MagicMock()
+    mock_study.best_params = {"lambdaS1": 0.25, "lambdaS2": 0.05}
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    returned_value_holder = {}
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            # Execute the inner function with optuna replaced in sys.modules
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                result = func()
+                returned_value_holder["result"] = result
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    mock_optuna.create_study.assert_called_once_with(direction="minimize")
+    mock_study.optimize.assert_called_once()
+    assert returned_value_holder["result"] == {
+        "lambdaS1": 0.25,
+        "lambdaS2": 0.05,
+    }
+
+
+def test_estimate_lambda_s_objective_success(make_napari_viewer, qtbot):
+    """Test that the objective function inside _run_estimation is called and returns gr."""
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    mock_model.single_iteration.return_value = 0.01
+    widget.v_model = mock_model
+
+    captured_objective_result = {}
+
+    mock_study = MagicMock()
+
+    def fake_optimize(obj_func, n_trials):
+        mock_trial = MagicMock()
+        mock_trial.suggest_float.side_effect = [0.3, 0.05]
+        result = obj_func(mock_trial)
+        captured_objective_result["value"] = result
+
+    mock_study.optimize.side_effect = fake_optimize
+    mock_study.best_params = {"lambdaS1": 0.3, "lambdaS2": 0.05}
+
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                func()
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    # The objective was called and returned the gr value from single_iteration
+    assert captured_objective_result["value"] == 0.01
+
+
+def test_estimate_lambda_s_objective_exception_path(make_napari_viewer, qtbot):
+    """Test that the objective function returns inf when single_iteration raises."""
+    import sys
+
+    from napari_pyvertexmodel._widget import Run3dVertexModel
+
+    viewer = make_napari_viewer
+    widget = Run3dVertexModel(viewer)
+    qtbot.addWidget(widget.native)
+
+    mock_model = MagicMock()
+    mock_model.single_iteration.side_effect = RuntimeError("sim error")
+    widget.v_model = mock_model
+
+    captured_objective_result = {}
+
+    mock_study = MagicMock()
+
+    def fake_optimize(obj_func, n_trials):
+        mock_trial = MagicMock()
+        mock_trial.suggest_float.side_effect = [0.3, 0.05]
+        result = obj_func(mock_trial)
+        captured_objective_result["value"] = result
+
+    mock_study.optimize.side_effect = fake_optimize
+    mock_study.best_params = {"lambdaS1": 0.3, "lambdaS2": 0.05}
+
+    mock_optuna = MagicMock()
+    mock_optuna.logging.WARNING = 30
+    mock_optuna.create_study.return_value = mock_study
+
+    mock_worker = MagicMock()
+
+    def synchronous_thread_worker(func):
+        def creator(*args, **kwargs):
+            original = sys.modules.get("optuna")
+            sys.modules["optuna"] = mock_optuna
+            try:
+                func()
+            finally:
+                if original is None:
+                    sys.modules.pop("optuna", None)
+                else:
+                    sys.modules["optuna"] = original
+            return mock_worker
+
+        return creator
+
+    with patch(
+        "napari_pyvertexmodel._widget.thread_worker",
+        synchronous_thread_worker,
+    ):
+        widget._estimate_lambda_s()
+
+    # The exception path returns float("inf")
+    assert captured_objective_result["value"] == float("inf")

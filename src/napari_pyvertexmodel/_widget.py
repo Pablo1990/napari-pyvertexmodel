@@ -1,3 +1,4 @@
+import copy
 import ctypes
 import os
 import threading
@@ -7,7 +8,13 @@ from typing import TYPE_CHECKING
 
 import napari.layers
 import numpy as np
-from magicgui.widgets import CheckBox, Container, Label, PushButton, create_widget
+from magicgui.widgets import (
+    CheckBox,
+    Container,
+    Label,
+    PushButton,
+    create_widget,
+)
 from napari.qt.threading import thread_worker
 from pyVertexModel.algorithm.vertexModelVoronoiFromTimeImage import (
     VertexModelVoronoiFromTimeImage,
@@ -57,27 +64,27 @@ class Run3dVertexModel(Container):
         self._image_layer_load_button = PushButton(text="Load Labels")
 
         # ----- Sliders with mechanical parameters -----
-        # Lambda Volume slider
+        # Lambda Volume slider (use Unicode lambda)
         self._lambda_volume_slider = create_widget(
-            label=r"$\lambda_V$", annotation=float, widget_type="FloatSlider"
+            label="λV", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_volume_slider.min = 0
         self._lambda_volume_slider.max = 10
         self._lambda_volume_slider.step = 0.01
         self._lambda_volume_slider.value = 1.0
 
-        # Volume reference slider
+        # Volume reference slider (use subscript zero)
         self._volume_reference_slider = create_widget(
-            label=r"$V_{0}$", annotation=float, widget_type="FloatSlider"
+            label="V₀", annotation=float, widget_type="FloatSlider"
         )
         self._volume_reference_slider.min = 0
         self._volume_reference_slider.max = 10
         self._volume_reference_slider.step = 0.01
         self._volume_reference_slider.value = 1.0
 
-        # Lambda Surface top slider
+        # Lambda Surface top slider (use Unicode lambda)
         self._lambda_surface_top_slider = create_widget(
-            label=r"$\lambda_{S1}$",
+            label="λS1",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -86,9 +93,9 @@ class Run3dVertexModel(Container):
         self._lambda_surface_top_slider.step = 0.01
         self._lambda_surface_top_slider.value = 0.5
 
-        # Lambda Surface bottom slider
+        # Lambda Surface bottom slider (use Unicode lambda)
         self._lambda_surface_bottom_slider = create_widget(
-            label=r"$\lambda_{S3}$",
+            label="λS3",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -97,9 +104,9 @@ class Run3dVertexModel(Container):
         self._lambda_surface_bottom_slider.step = 0.01
         self._lambda_surface_bottom_slider.value = 0.5
 
-        # Lambda Surface lateral slider
+        # Lambda Surface lateral slider (use Unicode lambda)
         self._lambda_surface_lateral_slider = create_widget(
-            label=r"$\lambda_{S2}$",
+            label="λS2",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -108,9 +115,14 @@ class Run3dVertexModel(Container):
         self._lambda_surface_lateral_slider.step = 0.01
         self._lambda_surface_lateral_slider.value = 0.1
 
-        # Surface Area reference slider
+        # Button to estimate lambda_s parameters (maintains cell aspect ratio)
+        self._estimate_lambda_s_button = PushButton(
+            text="Estimate \u03bbS Parameters"
+        )
+
+        # Surface Area reference slider (use subscript zero)
         self._surface_area_reference_slider = create_widget(
-            label=r"$A_{0}$", annotation=float, widget_type="FloatSlider"
+            label="A₀", annotation=float, widget_type="FloatSlider"
         )
         self._surface_area_reference_slider.min = 0
         self._surface_area_reference_slider.max = 10
@@ -119,7 +131,7 @@ class Run3dVertexModel(Container):
 
         # K substrate slider
         self._k_substrate_slider = create_widget(
-            label=r"$k_{Substrate}$",
+            label="Substrate adhesion (k)",
             annotation=float,
             widget_type="FloatSlider",
         )
@@ -130,7 +142,7 @@ class Run3dVertexModel(Container):
 
         # T end slider
         self._t_end_slider = create_widget(
-            label=r"$t_{end}$", annotation=float, widget_type="FloatSlider"
+            label="End time (min.)", annotation=float, widget_type="FloatSlider"
         )
         self._t_end_slider.min = 0
         self._t_end_slider.max = 30
@@ -143,18 +155,18 @@ class Run3dVertexModel(Container):
             text="Show Advanced Parameters", value=False
         )
 
-        # Energy Barrier (Lambda R) slider
+        # Energy Barrier (Lambda AR) slider (use Unicode lambda)
         self._lambda_r_slider = create_widget(
-            label=r"$\lambda_{R}$", annotation=float, widget_type="FloatSlider"
+            label="λ Aspect Ratio", annotation=float, widget_type="FloatSlider"
         )
         self._lambda_r_slider.min = 0
         self._lambda_r_slider.max = 1e-4
         self._lambda_r_slider.step = 1e-8
         self._lambda_r_slider.value = 8e-7
 
-        # Viscosity slider
+        # Viscosity slider (use Unicode nu)
         self._viscosity_slider = create_widget(
-            label=r"$\nu$", annotation=float, widget_type="FloatSlider"
+            label="Viscosity (µ)", annotation=float, widget_type="FloatSlider"
         )
         self._viscosity_slider.min = 0
         self._viscosity_slider.max = 1
@@ -204,6 +216,7 @@ class Run3dVertexModel(Container):
         self._show_advanced_params_checkbox.clicked.connect(
             self._display_advanced_params
         )
+        self._estimate_lambda_s_button.clicked.connect(self._estimate_lambda_s)
 
         # append into/extend the container with your widgets
         self.extend(
@@ -217,6 +230,7 @@ class Run3dVertexModel(Container):
                 self._lambda_surface_top_slider,
                 self._lambda_surface_bottom_slider,
                 self._lambda_surface_lateral_slider,
+                self._estimate_lambda_s_button,
                 self._surface_area_reference_slider,
                 self._k_substrate_slider,
                 self._t_end_slider,
@@ -235,6 +249,7 @@ class Run3dVertexModel(Container):
         self._temp_dir = None  # Store temp directory reference for clean-up
         self._worker = None  # Background simulation worker
         self._load_worker = None  # Background load-labels worker
+        self._estimate_lambda_s_worker = None  # Background estimation worker
         self._simulation_thread_id = None  # Thread ID for cancellation
         self._simulation_lock = (
             threading.Lock()
@@ -538,3 +553,102 @@ class Run3dVertexModel(Container):
             ]:
                 if widget in self:
                     self.remove(widget)
+
+    def _estimate_lambda_s(self):
+        """Estimate lambdaS1 and lambdaS2 to maintain the cell aspect ratio.
+
+        Uses optuna to minimise the gradient (gr) from a single model
+        iteration, keeping kSubstrate=0, EnergyBarrierAR=False, lambdaR=0,
+        ref_A0=0 and ref_V0=1 so that only volume and surface-area terms
+        contribute.  lambdaS3 is constrained to equal lambdaS1 throughout.
+        The best parameters found are written back to the λS sliders.
+        """
+        if self.v_model is None:
+            print(
+                "Error: No model loaded. "
+                "Please load a simulation or labels first."
+            )
+            return
+
+        if self._estimate_lambda_s_worker is not None:
+            print("Estimation already running.")
+            return
+
+        self.status_label.value = "Estimating \u03bbS parameters..."
+        self.progress_label.value = ""
+        self._estimate_lambda_s_button.enabled = False
+
+        # Snapshot the current model so the background thread works on a copy
+        v_model_snapshot = copy.deepcopy(self.v_model)
+
+        @thread_worker
+        def _run_estimation():
+            import optuna
+
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+            def objective(trial):
+                local_model = copy.deepcopy(v_model_snapshot)
+                local_model.set.lambdaS1 = trial.suggest_float(
+                    "lambdaS1", 1e-7, 1
+                )
+                local_model.set.lambdaS2 = trial.suggest_float(
+                    "lambdaS2", 1e-7, 1
+                )
+                local_model.set.lambdaS3 = local_model.set.lambdaS1
+                local_model.set.kSubstrate = 0
+                local_model.set.EnergyBarrierAR = False
+                local_model.set.lambdaR = 0
+                local_model.set.ref_A0 = 0
+                local_model.set.ref_V0 = 1
+                local_model.geo.init_reference_values_and_noise(
+                    local_model.set
+                )
+                try:
+                    gr = local_model.single_iteration(post_operations=False)
+                    return gr
+                except Exception:  # noqa: BLE001
+                    return float("inf")
+
+            study = optuna.create_study(direction="minimize")
+            study.optimize(objective, n_trials=50)
+            return study.best_params
+
+        worker = _run_estimation()
+        worker.returned.connect(self._on_estimation_done)
+        worker.errored.connect(self._on_estimation_error)
+        worker.finished.connect(self._on_estimation_finished)
+        self._estimate_lambda_s_worker = worker
+        worker.start()
+
+    def _on_estimation_done(self, best_params):
+        """Called on the main thread when the estimation completes."""
+        if best_params is None:
+            return
+        lambda_s1 = best_params.get(
+            "lambdaS1", self._lambda_surface_top_slider.value
+        )
+        lambda_s2 = best_params.get(
+            "lambdaS2", self._lambda_surface_lateral_slider.value
+        )
+        self._lambda_surface_top_slider.value = lambda_s1
+        self._lambda_surface_bottom_slider.value = lambda_s1  # S3 = S1
+        self._lambda_surface_lateral_slider.value = lambda_s2
+        self.progress_label.value = (
+            f"\u03bbS1=\u03bbS3={lambda_s1:.4f}, " f"\u03bbS2={lambda_s2:.4f}"
+        )
+        print(
+            f"Best \u03bbS parameters: "
+            f"\u03bbS1=\u03bbS3={lambda_s1:.4f}, \u03bbS2={lambda_s2:.4f}"
+        )
+
+    def _on_estimation_error(self, exc):
+        """Called on the main thread when the estimation raises an exception."""
+        self.progress_label.value = f"Error estimating \u03bbS: {exc}"
+        print(f"An error occurred while estimating \u03bbS parameters: {exc}")
+
+    def _on_estimation_finished(self):
+        """Called on the main thread when the estimation worker finishes."""
+        self._estimate_lambda_s_button.enabled = True
+        self.status_label.value = "Ready"
+        self._estimate_lambda_s_worker = None
