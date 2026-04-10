@@ -9,7 +9,7 @@
 [![npe2](https://img.shields.io/badge/plugin-npe2-blue?link=https://napari.org/stable/plugins/index.html)](https://napari.org/stable/plugins/index.html)
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-purple.json)](https://github.com/copier-org/copier)
 
-Run 3D mechanical simulations with pyVertexModel
+Run 3D mechanical simulations from segmented 2D images with pyVertexModel. In napari, you would be able to run the [3D vertex model](https://github.com/Pablo1990/pyVertexModel/) with a graphical user interface.
 
 ----------------------------------
 
